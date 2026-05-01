@@ -453,6 +453,11 @@ class MonitorModuleTests(unittest.TestCase):
             html = (Path(tmp) / "monitor.html").read_text(encoding="utf-8")
             self.assertIn("估算费用", html)
             self.assertIn("Token 用量拆分", html)
+            self.assertIn("data-theme", html)
+            self.assertIn("themeToggle", html)
+            self.assertIn("status.json HTTP", html)
+            self.assertIn("十一流程总览", html)
+            self.assertIn("DEFAULT_BATCH_CASES", html)
 
 
 if __name__ == "__main__":
