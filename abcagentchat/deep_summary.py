@@ -365,6 +365,9 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
 - 如果证据包被截断，必须在“证据限制”中说明哪些部分可能不完整。
 - 你要一次性产出三个独立 Markdown 文档的正文，程序会按标签拆分成三个文件。
 - 严格使用下列 XML-like 标签包裹每份文档；标签外不要输出正文。
+- 这不是短摘要。材料充分时，总输出目标为 15000-25000 中文字；宁可写成长篇审计文档，也不要压缩成泛泛结论。
+- 每份文档都要能独立阅读，不能用“见上文”“同前”替代具体分析。
+- 至少使用 4 张实质表格：讨论结果状态矩阵、流程质量矩阵、条款/议题矩阵、证据缺口矩阵。每张表不少于 6 行。
 
 <DISCUSSION_RESULT_MD>
 # 对这个问题讨论出来的结果
@@ -380,6 +383,8 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
 8. 风险清单与中止/退出触发条件
 9. 证据地图：列出关键结论来自哪些 Artifact/path
 10. 证据限制与需要补充的信息
+
+长度要求：至少写成 4000-7000 中文字的结果文档；如果证据不足，也要充分展开“为什么不足、哪些结论不能成立”。
 </DISCUSSION_RESULT_MD>
 
 <PROCESS_ANALYSIS_MD>
@@ -395,6 +400,8 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
 7. 对议案讨论引擎的测试价值：上下文保持、角色一致性、并行轮次、第四轮自总结、compact 质量
 8. 可量化指标引用：调用数、tokens、reasoning tokens、prompt cache hit/miss、错误数、长度截断、产物完整性；如证据包缺少 metrics，明确说明
 9. 改进建议：下一版工作流、prompt、监控和产物结构怎么优化
+
+长度要求：至少写成 4000-7000 中文字的流程审计文档；重点分析浅讨论、重复讨论、角色同质化和证据不足的迹象。
 </PROCESS_ANALYSIS_MD>
 
 <SYNTHESIZED_DOCUMENT_MD>
@@ -412,6 +419,8 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
 9. 外部审批/备案事项
 10. 风险与保障
 11. 附录：讨论过程摘要和证据来源
+
+长度要求：至少写成 5000-8000 中文字的正式合成稿；不能只是摘要，要像可归档文件一样完整。
 </SYNTHESIZED_DOCUMENT_MD>
 
 最长上下文证据包：
