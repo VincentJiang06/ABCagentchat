@@ -81,6 +81,10 @@ class ApiModuleTests(unittest.TestCase):
         coordinator_meta = coordinator.request_meta(max_tokens=1234, temperature=0.0, reasoning_effort="max")
         self.assertEqual(coordinator_meta["max_tokens"], 1234)
         self.assertEqual(coordinator_meta["temperature"], 0.0)
+        self.assertEqual(coordinator_meta["reasoning_effort"], "max")
+        role_meta = role.request_meta(max_tokens=6144, temperature=0.8)
+        self.assertEqual(role_meta["thinking"], {"type": "disabled"})
+        self.assertNotIn("reasoning_effort", role_meta)
 
 
 class BackgroundModuleTests(unittest.TestCase):

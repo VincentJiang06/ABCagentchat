@@ -16,6 +16,21 @@ EXPECTED_LOOP_FILES = [
     "stage_report.md",
 ]
 
+EXPECTED_FINAL_FILES = [
+    "final_summary.md",
+    "run_index.md",
+    "final/README.md",
+    "final/manifest.json",
+    "final/00_full_final_summary.md",
+    "final/01_discussion_result.md",
+    "final/02_process_analysis.md",
+    "final/03_synthesized_document.md",
+    "final/04_evidence_and_next_steps.md",
+    "final/final_summary.md",
+    "final/process_timeline.md",
+    "final/output_tree.md",
+]
+
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
@@ -66,14 +81,9 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
         expected_calls += optional_repair_calls + expected_compact_archive_summary_calls
 
     missing_files: list[str] = []
-    if not (run_dir / "input.md").exists():
-        missing_files.append("input.md")
-    if not (run_dir / "run_config.json").exists():
-        missing_files.append("run_config.json")
-    if not (run_dir / "transcript.jsonl").exists():
-        missing_files.append("transcript.jsonl")
-    if not (run_dir / "final_summary.md").exists():
-        missing_files.append("final_summary.md")
+    for name in ["input.md", "run_config.json", "transcript.jsonl", *EXPECTED_FINAL_FILES]:
+        if not (run_dir / name).exists():
+            missing_files.append(name)
 
     round_line_counts: dict[str, int] = {}
     for index in range(1, loops + 1):

@@ -90,13 +90,15 @@ class DeepSeekClient:
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         payload = self.build_payload([], max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort)
-        return {
+        meta = {
             "model": payload["model"],
             "thinking": payload["thinking"],
-            "reasoning_effort": payload.get("reasoning_effort"),
             "max_tokens": payload["max_tokens"],
             "temperature": payload["temperature"],
         }
+        if "reasoning_effort" in payload:
+            meta["reasoning_effort"] = payload["reasoning_effort"]
+        return meta
 
     def chat(
         self,

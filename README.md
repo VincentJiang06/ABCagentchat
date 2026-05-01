@@ -116,7 +116,7 @@ See `DEBUG_PLAN.md` for a module-by-module manual inspection plan.
 Run tests:
 
 ```bash
-python3 -m unittest -v tests/test_blocks.py
+python3 -m unittest discover -s tests
 ```
 
 Audit a run:
@@ -125,7 +125,7 @@ Audit a run:
 python3 audit_run.py runs/dry-5-check --write
 ```
 
-The audit checks expected files, call counts, role coverage, errors, length stops, and empty previews.
+The audit checks expected files, the final summary package, call counts, role coverage, errors, length stops, and empty previews.
 
 ## Deep Final Summary
 
@@ -156,4 +156,4 @@ deep_summary/final_package/manifest.json
 deep_final_summary.md              # raw tagged model output for audit/debug
 ```
 
-The bundle prioritizes original scenario/config/metrics, run index files, all loop compacts, all stage reports, discussion plans, fourth-round role self-summaries, then raw role rounds. The final package is split into three reader-facing documents: the deliberation result landscape, an objective process analysis, and a synthesized source document suitable for reading or filing. Use `--include-background` only when you explicitly want generated `background_context.md` files included; they are usually redundant and very large.
+The bundle prioritizes original scenario/config/metrics, run index files, all loop compacts, all stage reports, discussion plans, fourth-round role self-summaries, then raw role rounds. The deep final package is split into three reader-facing documents: the deliberation result landscape, an objective process analysis, and a synthesized source document suitable for reading or filing. Use `--include-background` only when you explicitly want generated `background_context.md` files included; they are usually redundant and very large.

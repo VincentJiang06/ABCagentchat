@@ -96,6 +96,9 @@ class UtilityTests(unittest.TestCase):
         self.assertNotIn("reasoning_effort", role_payload)
         self.assertEqual(role_payload["max_tokens"], 6144)
         self.assertEqual(role_payload["temperature"], 0.8)
+        role_meta = role.request_meta(max_tokens=6144, temperature=0.8)
+        self.assertEqual(role_meta["thinking"], {"type": "disabled"})
+        self.assertNotIn("reasoning_effort", role_meta)
 
     def test_conversation_appends_assistant_outputs_for_later_rounds(self) -> None:
         conversation = Conversation("system")
@@ -155,9 +158,21 @@ primary_tests:
             metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
             self.assertEqual(metrics["transcript"]["call_count"], 20)
-            self.assertTrue((out / "final" / "final_summary.md").exists())
-            self.assertTrue((out / "final" / "output_tree.md").exists())
-            self.assertTrue((out / "run_index.md").exists())
+            for final_file in [
+                "final_summary.md",
+                "run_index.md",
+                "final/README.md",
+                "final/manifest.json",
+                "final/00_full_final_summary.md",
+                "final/01_discussion_result.md",
+                "final/02_process_analysis.md",
+                "final/03_synthesized_document.md",
+                "final/04_evidence_and_next_steps.md",
+                "final/final_summary.md",
+                "final/process_timeline.md",
+                "final/output_tree.md",
+            ]:
+                self.assertTrue((out / final_file).exists(), final_file)
             rows = [
                 json.loads(line)
                 for line in (out / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
@@ -175,11 +190,6 @@ primary_tests:
             self.assertEqual(first_by_type["stage_report"]["max_tokens"], 65536)
             self.assertEqual(first_by_type["final_summary"]["temperature"], 0.5)
             self.assertEqual(first_by_type["final_summary"]["max_tokens"], 65536)
-            self.assertTrue((out / "final" / "01_discussion_result.md").exists())
-            self.assertTrue((out / "final" / "02_process_analysis.md").exists())
-            self.assertTrue((out / "final" / "03_synthesized_document.md").exists())
-            self.assertTrue((out / "final" / "04_evidence_and_next_steps.md").exists())
-            self.assertTrue((out / "final" / "manifest.json").exists())
             for round_index in range(1, 5):
                 round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)
