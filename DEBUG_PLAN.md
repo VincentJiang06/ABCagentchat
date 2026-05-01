@@ -9,7 +9,7 @@
 检查命令：
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5 --dry-run --out runs/debug-background --keep-runs 0
+python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 5 --dry-run --out runs/debug-background --keep-runs 0
 ```
 
 检查文件：
@@ -121,7 +121,7 @@ python3 audit_run.py runs/debug-background --write
 检查命令：
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md \
+python3 run_simulation.py scenarios/10_university_evening_self_study.md \
   --loops 1 \
   --max-subcycles 1 \
   --rounds-per-subcycle 3 \

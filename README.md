@@ -33,13 +33,13 @@ DEEPSEEK_ROLE_D_KEY=...
 Run a scenario:
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5
+python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 5
 ```
 
 Dry-run without API calls:
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5 --dry-run --out runs/dry-5-check
+python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 5 --dry-run --out runs/dry-5-check
 ```
 
 Useful controls:

@@ -458,7 +458,7 @@ class MonitorModuleTests(unittest.TestCase):
             self.assertIn("status.json HTTP", html)
             self.assertIn("测试流程总览", html)
             self.assertIn("DEFAULT_BATCH_CASES", html)
-            self.assertIn("21_online_social_relationships", html)
+            self.assertIn("20_online_social_relationships", html)
 
 
 if __name__ == "__main__":
