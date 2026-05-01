@@ -1,6 +1,6 @@
 ---
 title: 完整社区建设项目排序议案
-loops: 2
+loops: 5
 domain: community_planning
 source_refs:
   - title: 两部门印发通知开展完整社区建设试点工作

@@ -4,25 +4,25 @@
 
 ## 1. Scenario / Background
 
-目标：确认原始议题和历史 compact 能稳定注入后续循环，同时历史 compact 按距离呈现梯度：最近四个保留全文，较早 compact 递减摘录，最早材料由滚动开放讨论账本兜底。
+目标：确认原始议题和历史 compact 能稳定注入后续循环。标准问题锁定为 5 个循环，最近四个 compact 会以全文进入最后一轮背景；超过 5 循环的 archive 压缩逻辑只作为单元测试覆盖。
 
 检查命令：
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 6 --dry-run --out runs/debug-background --keep-runs 0
+python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5 --dry-run --out runs/debug-background --keep-runs 0
 ```
 
 检查文件：
 
 - `runs/debug-background/loop_01/background_context.md` 应包含原始议题，历史 compact 为空。
 - `runs/debug-background/loop_02/background_context.md` 应包含原始议题和“第 1 个循环 compact”。
-- `runs/debug-background/loop_06/background_context.md` 应包含“第 1-1 个循环 compact 滚动开放讨论账本摘要”，第 1 个循环 compact 的梯度摘录，并完整保留第 2-5 个循环 compact。
-- `runs/debug-background/compact_archive_summary.md` 应存在，且由 coordinator 以 `reasoning_effort=max` 生成。
+- `runs/debug-background/loop_05/background_context.md` 应完整保留第 1-4 个循环 compact。
+- 标准 5 循环通常不会生成 `compact_archive_summary.md`；超过 5 循环时才会触发更早 compact 的滚动摘要。
 
 通过标准：
 
 - 原始议题没有丢失。
-- 历史 compact 最近 4 个保留全文；更早 compact 以递减摘录进入背景，并由高质量滚动开放讨论账本统一兜底。
+- 历史 compact 最近 4 个保留全文；超过标准 5 循环时，更早 compact 才以递减摘录进入背景，并由高质量滚动开放讨论账本统一兜底。
 - 没有把三轮角色全文无限塞入跨循环背景，只保留 compact 和近期摘要。
 
 ## 2. Compact
@@ -80,7 +80,7 @@ python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 
   - 第 3 轮 A/B/C/D: `8,8,8,8`
   - 第 4 轮总结 A/B/C/D: `12,12,12,12`
 - 第 4 轮应要求四个角色总结自己的最终观点和仍有疑惑，而不是继续开启新争论。
-- role request 中 `model` 为 `deepseek-v4-flash`，`thinking.type` 为 `enabled`，且 `reasoning_effort` 为 `high`。
+- role request 中 `model` 为 `deepseek-v4-pro`，`thinking.type` 为 `disabled`，且不带 `reasoning_effort`。
 
 ## 5. Reports
 
@@ -138,5 +138,5 @@ python3 run_simulation.py scenarios/11_university_evening_self_study.md \
 
 - `metrics.json` 通过。
 - `transcript.jsonl` 显示 coordinator thinking enabled/max。
-- `transcript.jsonl` 显示 role model 为 `deepseek-v4-flash`，thinking enabled，reasoning_effort high。
+- `transcript.jsonl` 显示 role model 为 `deepseek-v4-pro`，thinking disabled，且不带 reasoning_effort。
 - 三轮讨论加第 4 轮总结的 role assistant_count 按 `0/4/8/12` 同步递增。

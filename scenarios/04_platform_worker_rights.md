@@ -1,6 +1,6 @@
 ---
 title: 新就业形态骑手权益协商议案
-loops: 2
+loops: 5
 domain: labor_rights
 source_refs:
   - title: 关于维护新就业形态劳动者劳动保障权益的指导意见

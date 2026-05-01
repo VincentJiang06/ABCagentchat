@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 
+DEFAULT_SCENARIO_LOOPS = 5
+
+
 @dataclass(frozen=True)
 class Scenario:
     path: Path
@@ -72,7 +75,7 @@ def load_scenario(path: Path, loops_override: int | None = None) -> Scenario:
     text = path.read_text(encoding="utf-8")
     meta, body = parse_frontmatter(text)
     title = str(meta.get("title") or path.stem)
-    loops = loops_override if loops_override is not None else int(meta.get("loops") or 5)
+    loops = loops_override if loops_override is not None else int(meta.get("loops") or DEFAULT_SCENARIO_LOOPS)
     source_refs = meta.get("source_refs") or []
     if not isinstance(source_refs, list):
         source_refs = []

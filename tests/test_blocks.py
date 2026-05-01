@@ -75,11 +75,11 @@ class UtilityTests(unittest.TestCase):
         role = DeepSeekClient(
             "key",
             ModelSettings(
-                model="deepseek-v4-flash",
+                model="deepseek-v4-pro",
                 base_url="https://api.deepseek.com",
                 max_tokens=6144,
-                thinking_enabled=True,
-                reasoning_effort="high",
+                thinking_enabled=False,
+                reasoning_effort=None,
                 temperature=0.8,
             ),
         )
@@ -92,8 +92,8 @@ class UtilityTests(unittest.TestCase):
         self.assertEqual(coordinator_payload["thinking"], {"type": "enabled"})
         self.assertEqual(coordinator_payload["reasoning_effort"], "max")
         self.assertEqual(coordinator_override_payload["reasoning_effort"], "high")
-        self.assertEqual(role_payload["thinking"], {"type": "enabled"})
-        self.assertEqual(role_payload["reasoning_effort"], "high")
+        self.assertEqual(role_payload["thinking"], {"type": "disabled"})
+        self.assertNotIn("reasoning_effort", role_payload)
         self.assertEqual(role_payload["max_tokens"], 6144)
         self.assertEqual(role_payload["temperature"], 0.8)
 
@@ -169,8 +169,17 @@ primary_tests:
             self.assertEqual(first_by_type["planning"]["temperature"], 0.2)
             self.assertEqual(first_by_type["role_A"]["temperature"], 0.8)
             self.assertEqual(first_by_type["role_A"]["max_tokens"], 6144)
+            self.assertEqual(first_by_type["role_A"]["thinking"], {"type": "disabled"})
+            self.assertNotIn("reasoning_effort", first_by_type["role_A"])
             self.assertEqual(first_by_type["stage_report"]["temperature"], 0.0)
+            self.assertEqual(first_by_type["stage_report"]["max_tokens"], 65536)
             self.assertEqual(first_by_type["final_summary"]["temperature"], 0.5)
+            self.assertEqual(first_by_type["final_summary"]["max_tokens"], 65536)
+            self.assertTrue((out / "final" / "01_discussion_result.md").exists())
+            self.assertTrue((out / "final" / "02_process_analysis.md").exists())
+            self.assertTrue((out / "final" / "03_synthesized_document.md").exists())
+            self.assertTrue((out / "final" / "04_evidence_and_next_steps.md").exists())
+            self.assertTrue((out / "final" / "manifest.json").exists())
             for round_index in range(1, 5):
                 round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)
@@ -182,7 +191,7 @@ primary_tests:
             scenario_path.write_text("---\ntitle: 两轮议案\nloops: 2\n---\n# 情景设定\n测试。", encoding="utf-8")
             scenario = load_scenario(scenario_path)
             out = root / "runs" / "two-loops"
-            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
+            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True, max_loops=6))
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
 
@@ -201,7 +210,7 @@ primary_tests:
             scenario_path.write_text("---\ntitle: 六轮议案\nloops: 6\n---\n# 情景设定\n测试。", encoding="utf-8")
             scenario = load_scenario(scenario_path)
             out = root / "runs" / "six-loops"
-            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
+            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True, max_loops=6))
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
 
@@ -226,11 +235,11 @@ primary_tests:
             self.assertEqual(archive_rows[0]["request"]["thinking"], {"type": "enabled"})
             self.assertEqual(archive_rows[0]["request"]["reasoning_effort"], "max")
 
-    def test_loop_cap_defaults_to_10(self) -> None:
+    def test_loop_cap_defaults_to_5(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scenario_path = root / "scenario.md"
-            scenario_path.write_text("---\ntitle: 十轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
+            scenario_path.write_text("---\ntitle: 五轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
             scenario = load_scenario(scenario_path)
             out = root / "runs" / "cap"
             simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
@@ -238,7 +247,7 @@ primary_tests:
                 simulator.run(scenario)
             run_config = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
             self.assertEqual(run_config["scenario"]["requested_loops"], 150)
-            self.assertEqual(run_config["scenario"]["loops"], 10)
+            self.assertEqual(run_config["scenario"]["loops"], 5)
 
     def test_audit_detects_missing_round_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

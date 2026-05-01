@@ -1,6 +1,6 @@
 ---
 title: 社区嵌入式服务设施运营议案
-loops: 2
+loops: 5
 domain: community_service_operation
 source_refs:
   - title: 完整社区建设试点近两年来 建设改造养老托育等服务设施2000余个

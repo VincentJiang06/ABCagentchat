@@ -1,6 +1,6 @@
 ---
 title: 基层慢病筛查与社区健康服务议案
-loops: 2
+loops: 5
 domain: primary_health
 source_refs:
   - title: 筑牢基层慢性病防治“健康保障线”

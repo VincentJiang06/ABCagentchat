@@ -7,14 +7,14 @@ The current scenario set is mostly social governance and public-service delibera
 ## Runtime Model Strategy
 
 - Coordinator calls use `deepseek-v4-pro` with thinking enabled and `reasoning_effort=max`.
-- Role A/B/C/D calls use `deepseek-v4-flash` with thinking enabled, `reasoning_effort=high`, `max_tokens=6144`, and `temperature=0.8`.
+- Role A/B/C/D calls use `deepseek-v4-pro` with thinking disabled, `max_tokens=6144`, and `temperature=0.8`.
 - Coordinator stage temperatures are explicit per call: compact/archive `0.0`, planning `0.2`, planning repair `0.0`, stage report `0.0`, final/deep summary `0.5`.
 - Compact, planning, compact-archive, stage-report, and final-summary calls explicitly request `reasoning_effort=max` and use large output ceilings so the coordinator can keep richer context and produce more careful visible analysis.
 - The DeepSeek chat API is stateless, so every role subcycle explicitly sends accumulated `messages`: the shared background is placed once in the subcycle system prompt, while later role calls include short role/task prompts plus previous assistant outputs from completed rounds in the same subcycle.
 - Role discussion is round-parallel by default. In each subcycle, A/B/C/D speak at the same time from the same frozen context; after all four finish, their outputs are appended in A/B/C/D order before the next round starts. The default subcycle has three discussion rounds plus a fourth role-summary round.
 - Planning is encouraged to rotate the A/B/C/D perspective cards across loops instead of keeping four fixed personas forever. If a perspective continues across loops, the plan should explain why that perspective still adds a necessary conflict, evidence memory, or value position.
 - Prompts emphasize abstract problem framing, strong opposing views, steelmanning, minority positions, and irreducible disagreement. They avoid treating every discussion as if it already produced a clean result.
-- Cross-loop background injects the original issue plus a gradient compact archive: the latest four loop compacts in full, older compacts as decreasing excerpts, and a max-effort rolling open-discussion ledger summary for the oldest material. For example, loop 10 receives the original issue, a max-effort summary of earlier loops, compact excerpts that shrink with distance, and full compacts from loops 6-9 before new roles start their three-round discussion.
+- Cross-loop background injects the original issue plus a gradient compact archive: the latest four loop compacts in full, older compacts as decreasing excerpts, and a max-effort rolling open-discussion ledger summary for the oldest material. The standard scenario length is locked to five loops, so the final loop receives the original issue plus full recent compacts before new roles start their three-round discussion.
 - Recent raw discussion is still bounded by `--recent-context-chars` to avoid unbounded transcript growth.
 
 ## Run
@@ -32,19 +32,19 @@ DEEPSEEK_ROLE_D_KEY=...
 Run a scenario:
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 3
+python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5
 ```
 
 Dry-run without API calls:
 
 ```bash
-python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 10 --dry-run --out runs/dry-10-check
+python3 run_simulation.py scenarios/11_university_evening_self_study.md --loops 5 --dry-run --out runs/dry-5-check
 ```
 
 Useful controls:
 
 ```bash
---max-loops 10
+--max-loops 5
 --max-subcycles 3
 --rounds-per-subcycle 3
 --no-summary-round
@@ -81,6 +81,13 @@ loop_01/
   stage_report.md
 final_summary.md
 final/
+  README.md
+  manifest.json
+  00_full_final_summary.md
+  01_discussion_result.md
+  02_process_analysis.md
+  03_synthesized_document.md
+  04_evidence_and_next_steps.md
   final_summary.md
   process_timeline.md
   output_tree.md
@@ -114,7 +121,7 @@ python3 -m unittest -v tests/test_blocks.py
 Audit a run:
 
 ```bash
-python3 audit_run.py runs/dry-10-check --write
+python3 audit_run.py runs/dry-5-check --write
 ```
 
 The audit checks expected files, call counts, role coverage, errors, length stops, and empty previews.

@@ -1,6 +1,6 @@
 ---
 title: 城市地下空间与公共通道使用议案
-loops: 2
+loops: 5
 domain: urban_planning_hearing
 source_refs:
   - title: 陈华元代表：加快城市地下空间管理立法

@@ -1,6 +1,6 @@
 ---
 title: 电动自行车社区充电收费与安全治理议案
-loops: 2
+loops: 5
 domain: community_governance
 source_refs:
   - title: 关于规范电动自行车充电收费行为的通知

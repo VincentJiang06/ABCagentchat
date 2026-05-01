@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=600, help="Per-request timeout in seconds.")
     parser.add_argument("--dry-run", action="store_true", help="Run without network/API calls.")
     parser.add_argument("--recent-context-chars", type=int, default=32000)
-    parser.add_argument("--max-loops", type=int, default=10, help="Hard cap for discussion loops.")
+    parser.add_argument("--max-loops", type=int, default=5, help="Hard cap for discussion loops.")
     parser.add_argument("--max-subcycles", type=int, default=3, help="Maximum discussion subcycles per loop.")
     parser.add_argument("--rounds-per-subcycle", type=int, default=3, help="Role speaking rounds per subcycle.")
     parser.add_argument("--no-summary-round", action="store_true", help="Disable the fourth parallel role summary round.")

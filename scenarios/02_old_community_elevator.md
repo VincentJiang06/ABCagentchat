@@ -1,6 +1,6 @@
 ---
 title: 老旧小区加装电梯与低楼层补偿议案
-loops: 2
+loops: 5
 domain: neighborhood_renovation
 source_refs:
   - title: 最高法、住建部联合发布第一批老旧小区既有住宅加装电梯典型案例

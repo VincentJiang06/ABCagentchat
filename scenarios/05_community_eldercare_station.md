@@ -1,6 +1,6 @@
 ---
 title: 社区养老服务站资源配置议案
-loops: 2
+loops: 5
 domain: eldercare_public_service
 source_refs:
   - title: 中共中央 国务院关于深化养老服务改革发展的意见

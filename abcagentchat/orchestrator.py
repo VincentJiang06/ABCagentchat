@@ -30,6 +30,14 @@ TEMP_PLANNING = 0.2
 TEMP_PLANNING_REPAIR = 0.0
 TEMP_STAGE_REPORT = 0.0
 TEMP_FINAL_SUMMARY = 0.5
+DEFAULT_STAGE_MAX_TOKENS = COORDINATOR_MAX_TOKENS
+DEFAULT_FINAL_MAX_TOKENS = COORDINATOR_MAX_TOKENS
+FINAL_SECTION_SPECS = [
+    ("discussion_result", "对这个问题讨论出来的结果", "01_discussion_result.md"),
+    ("process_analysis", "对整个讨论流程的客观分析", "02_process_analysis.md"),
+    ("synthesized_document", "原文的文档合成稿", "03_synthesized_document.md"),
+    ("evidence_and_next_steps", "证据缺口与后续测试建议", "04_evidence_and_next_steps.md"),
+]
 
 
 @dataclass
@@ -40,7 +48,7 @@ class RunOptions:
     timeout: int = 600
     recent_context_chars: int = 32000
     preview_chars: int = 260
-    max_loops: int = 10
+    max_loops: int = 5
     max_subcycles: int = 3
     rounds_per_subcycle: int = 3
     role_summary_round: bool = True
@@ -54,7 +62,8 @@ class RunOptions:
 class DryRunClient:
     def __init__(self, label: str) -> None:
         self.label = label
-        default_reasoning = "max" if label == "coordinator" else "high"
+        is_coordinator = label == "coordinator"
+        default_reasoning = "max" if is_coordinator else None
         default_temperature = 0.2 if label == "coordinator" else 0.8
         default_max_tokens = COORDINATOR_MAX_TOKENS if label == "coordinator" else ROLE_MAX_TOKENS
         self.settings = type(
@@ -62,7 +71,7 @@ class DryRunClient:
             (),
             {
                 "model": "dry-run",
-                "thinking_enabled": True,
+                "thinking_enabled": is_coordinator,
                 "reasoning_effort": default_reasoning,
                 "max_tokens": default_max_tokens,
                 "temperature": default_temperature,
@@ -76,14 +85,16 @@ class DryRunClient:
         temperature: float | None = None,
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
-        default_reasoning = "max" if self.label == "coordinator" else "high"
-        return {
+        effort = reasoning_effort if reasoning_effort is not None else self.settings.reasoning_effort
+        payload = {
             "model": "dry-run",
-            "thinking": {"type": "enabled"},
-            "reasoning_effort": reasoning_effort or default_reasoning,
+            "thinking": {"type": "enabled" if self.settings.thinking_enabled else "disabled"},
             "max_tokens": max_tokens or self.settings.max_tokens,
             "temperature": self.settings.temperature if temperature is None else temperature,
         }
+        if self.settings.thinking_enabled and effort:
+            payload["reasoning_effort"] = effort
+        return payload
 
     def chat(
         self,
@@ -110,7 +121,16 @@ class DryRunClient:
     def _fake_content(self, messages: list[dict[str, str]]) -> str:
         last = messages[-1]["content"]
         if "请对整个议案讨论过程做最终总结" in last or "请对整个开放式议题讨论过程做最终总结" in last:
-            return "## 最终总结\n\n本次 dry-run 验证了模块化编排、多轮上下文拼接、开放分歧记录和报告保存逻辑。"
+            return (
+                "# 对这个问题讨论出来的结果\n\n"
+                "本次 dry-run 验证了模块化编排、多轮上下文拼接、开放分歧记录和报告保存逻辑。\n\n"
+                "# 对整个讨论流程的客观分析\n\n"
+                "流程分析显示 compact、planning、并行角色轮和阶段报告均被保存，可供审计。\n\n"
+                "# 原文的文档合成稿\n\n"
+                "这是一份面向读者的合成稿占位，真实运行会在这里形成更长的议案文本。\n\n"
+                "# 证据缺口与后续测试建议\n\n"
+                "dry-run 不包含真实模型论证内容，因此只能验证结构，不能验证观点质量。"
+            )
         if "请更新“更早 compact”的高质量滚动状态账本摘要" in last or "请更新“更早 compact”的高质量滚动开放讨论账本摘要" in last:
             covered_match = re.search(r"覆盖第 1-(\d+) 个循环", last)
             covered_until = covered_match.group(1) if covered_match else "1"
@@ -523,7 +543,7 @@ class Simulator:
             client_key="coordinator",
             call_type="stage_report",
             messages=stage_report_messages(scenario, loop_index, compact, discussion_text),
-            max_tokens=self.options.stage_max_tokens or 32768,
+            max_tokens=self.options.stage_max_tokens or DEFAULT_STAGE_MAX_TOKENS,
             output_path=loop_dir / "stage_report.md",
             transcript_path=transcript_path,
             errors_path=errors_path,
@@ -553,7 +573,7 @@ class Simulator:
             output_path=run_dir / "final_summary.md",
             transcript_path=transcript_path,
             errors_path=errors_path,
-            max_tokens=self.options.final_max_tokens,
+            max_tokens=self.options.final_max_tokens or DEFAULT_FINAL_MAX_TOKENS,
             monitor=monitor,
             reasoning_effort="max",
             temperature=TEMP_FINAL_SUMMARY,
@@ -563,6 +583,25 @@ class Simulator:
         final_dir = run_dir / "final"
         final_dir.mkdir(parents=True, exist_ok=True)
         write_text(final_dir / "final_summary.md", final_summary)
+        write_text(final_dir / "00_full_final_summary.md", final_summary)
+
+        split_sections = self._split_final_summary_sections(final_summary)
+        files: list[dict[str, Any]] = []
+        for key, title, filename in FINAL_SECTION_SPECS:
+            content = split_sections.get(key)
+            parsed = bool(content)
+            if not content:
+                content = f"# {title}\n\n本节未能从模型输出中按标准一级标题解析出来。请查看 `00_full_final_summary.md`。"
+            write_text(final_dir / filename, content)
+            files.append(
+                {
+                    "key": key,
+                    "title": title,
+                    "filename": filename,
+                    "chars": len(content),
+                    "parsed": parsed,
+                }
+            )
 
         timeline = ["# Process Timeline", ""]
         if timeline_items:
@@ -570,6 +609,26 @@ class Simulator:
         else:
             timeline.append("- No loop stage reports were produced.")
         write_text(final_dir / "process_timeline.md", "\n".join(timeline))
+        write_text(
+            final_dir / "README.md",
+            "\n".join(
+                [
+                    "# Final Package",
+                    "",
+                    "标准最终阶段会同时保留完整模型输出和拆分后的阅读文件。",
+                    "",
+                    "## Recommended Reading Order",
+                    "",
+                    "- `01_discussion_result.md`: 议题结果、条件共识、不可化约分歧和权限边界。",
+                    "- `02_process_analysis.md`: 对规划、compact、角色碰撞、阶段报告和上下文保持的客观分析。",
+                    "- `03_synthesized_document.md`: 面向读者/委员会/归档的正式合成稿。",
+                    "- `04_evidence_and_next_steps.md`: 证据缺口、后续测试和运行风险。",
+                    "- `00_full_final_summary.md`: 未拆分的完整模型输出，供审计和排错。",
+                    "",
+                ]
+            ),
+        )
+        write_json(final_dir / "manifest.json", {"files": files})
 
         output_tree = self._render_output_tree(run_dir)
         write_text(final_dir / "output_tree.md", output_tree)
@@ -591,7 +650,12 @@ class Simulator:
                     "- `loop_XX/discussion_plan.md`: per-loop perspective and group planning.",
                     "- `loop_XX/subcycle_*/discussion_round_*.jsonl`: role discussion records.",
                     "- `loop_XX/stage_report.md`: stage-level thought report.",
-                    "- `final/final_summary.md`: final summary stage output.",
+                    "- `final/final_summary.md` and `final/00_full_final_summary.md`: full final summary stage output.",
+                    "- `final/01_discussion_result.md`: discussion result landscape and conditional recommendations.",
+                    "- `final/02_process_analysis.md`: objective workflow/process analysis.",
+                    "- `final/03_synthesized_document.md`: reader-facing synthesized document.",
+                    "- `final/04_evidence_and_next_steps.md`: evidence gaps and follow-up testing recommendations.",
+                    "- `final/manifest.json`: final package file manifest.",
                     "- `final/process_timeline.md`: loop report timeline.",
                     "- `final/output_tree.md`: complete artifact tree.",
                     "",
@@ -601,6 +665,24 @@ class Simulator:
                 ]
             ),
         )
+
+    def _split_final_summary_sections(self, final_summary: str) -> dict[str, str]:
+        headings = {f"# {title}": key for key, title, _filename in FINAL_SECTION_SPECS}
+        sections: dict[str, list[str]] = {}
+        current_key: str | None = None
+        for line in final_summary.splitlines():
+            stripped = line.strip()
+            if stripped in headings:
+                current_key = headings[stripped]
+                sections[current_key] = [line]
+                continue
+            if current_key:
+                sections[current_key].append(line)
+        return {
+            key: "\n".join(lines).strip()
+            for key, lines in sections.items()
+            if "\n".join(lines).strip()
+        }
 
     def _render_output_tree(self, run_dir: Path) -> str:
         lines = ["# Output Tree", ""]

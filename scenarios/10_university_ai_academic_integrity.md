@@ -1,6 +1,6 @@
 ---
 title: 大学 AI 学术诚信与学生权益建议议案
-loops: 2
+loops: 5
 domain: university_control_case
 source_refs: []
 primary_tests:

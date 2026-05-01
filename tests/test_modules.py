@@ -60,11 +60,11 @@ class ApiModuleTests(unittest.TestCase):
         role = DeepSeekClient(
             "key",
             ModelSettings(
-                "deepseek-v4-flash",
+                "deepseek-v4-pro",
                 "https://api.deepseek.com",
                 6144,
-                thinking_enabled=True,
-                reasoning_effort="high",
+                thinking_enabled=False,
+                reasoning_effort=None,
                 temperature=0.8,
             ),
         )
@@ -74,8 +74,8 @@ class ApiModuleTests(unittest.TestCase):
             "high",
         )
         role_payload = role.build_payload([{"role": "user", "content": "x"}])
-        self.assertEqual(role_payload["thinking"], {"type": "enabled"})
-        self.assertEqual(role_payload["reasoning_effort"], "high")
+        self.assertEqual(role_payload["thinking"], {"type": "disabled"})
+        self.assertNotIn("reasoning_effort", role_payload)
         self.assertEqual(role_payload["max_tokens"], 6144)
         self.assertEqual(role_payload["temperature"], 0.8)
         coordinator_meta = coordinator.request_meta(max_tokens=1234, temperature=0.0, reasoning_effort="max")

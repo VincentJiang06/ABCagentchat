@@ -1,6 +1,6 @@
 ---
 title: 物业服务质量与业委会监督议案
-loops: 2
+loops: 5
 domain: property_governance
 source_refs:
   - title: 构建物业管理新格局促进社区和谐发展
