@@ -14,30 +14,36 @@ MONITOR_HTML = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ABC Agent Chat Monitor</title>
   <style>
-    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f6f7f8; color: #111; }
-    main { max-width: 1280px; margin: 0 auto; padding: 24px; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 14px; }
-    h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
-    .muted { color: #666; font-size: 13px; }
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #05070a; color: #e8eef8; }
+    main { max-width: 1360px; margin: 0 auto; padding: 24px; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; border-bottom: 4px solid #f8fafc; padding-bottom: 18px; }
+    h1 { margin: 0; font-size: 42px; line-height: 1; letter-spacing: 0; }
+    .scenario-title { margin-top: 10px; font-size: 22px; font-weight: 700; color: #f8fafc; }
+    .muted { color: #94a3b8; font-size: 13px; }
     .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
-    .tile, section { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 14px; }
-    .label { color: #666; font-size: 12px; }
+    .tile, section { background: #0f131a; border: 1px solid #293241; border-radius: 8px; padding: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset; }
+    .label { color: #94a3b8; font-size: 12px; }
     .value { margin-top: 6px; font-size: 22px; font-weight: 700; }
-    .small { margin-top: 5px; color: #666; font-size: 12px; line-height: 1.35; }
+    .small { margin-top: 5px; color: #94a3b8; font-size: 12px; line-height: 1.35; }
     section { margin-top: 12px; }
     h2 { font-size: 15px; margin: 0 0 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-    th { color: #444; background: #fafafa; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #293241; vertical-align: top; }
+    th { color: #cbd5e1; background: #151b24; }
     .event { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; line-height: 1.45; }
     .phase { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; }
-    .progress { height: 10px; overflow: hidden; background: #e5e7eb; border-radius: 999px; margin-top: 10px; }
-    .progress > div { height: 100%; background: #111; width: 0%; transition: width .25s ease; }
-    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; background: #fafafa; margin: 0 6px 6px 0; font-size: 12px; }
-    .ok { color: #007a3d; }
-    .warn { color: #a65300; }
-    .danger { color: #b00020; }
+    .progress { height: 10px; overflow: hidden; background: #1f2937; border-radius: 999px; margin-top: 10px; }
+    .progress > div { height: 100%; background: #38bdf8; width: 0%; transition: width .25s ease; }
+    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #334155; border-radius: 999px; background: #111827; color: #dbeafe; margin: 0 6px 6px 0; font-size: 12px; }
+    .preview-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .preview-button { border: 1px solid #334155; background: #111827; color: #e8eef8; border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+    .preview-button.active { background: #38bdf8; border-color: #38bdf8; color: #020617; font-weight: 700; }
+    .preview-meta { margin-bottom: 8px; color: #94a3b8; font-size: 12px; }
+    .preview-box { margin: 0; max-height: 520px; overflow: auto; white-space: pre-wrap; border: 1px solid #293241; background: #070b11; color: #dbeafe; border-radius: 8px; padding: 12px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .ok { color: #34d399; }
+    .warn { color: #fbbf24; }
+    .danger { color: #fb7185; }
     @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .phase { grid-template-columns: 1fr; } header { display: block; } }
   </style>
 </head>
@@ -46,7 +52,7 @@ MONITOR_HTML = """<!doctype html>
     <header>
       <div>
         <h1>ABC Agent Chat Monitor</h1>
-        <div class="muted" id="scenario">loading</div>
+        <div class="scenario-title" id="scenario">loading</div>
       </div>
       <div class="muted" id="updated">waiting</div>
     </header>
@@ -76,6 +82,12 @@ MONITOR_HTML = """<!doctype html>
       <div class="event" id="events">-</div>
     </section>
     <section>
+      <h2>运行产物预览</h2>
+      <div class="preview-toolbar" id="previewTabs"></div>
+      <div class="preview-meta" id="previewMeta">等待产物生成</div>
+      <pre class="preview-box" id="previewBox">-</pre>
+    </section>
+    <section>
       <h2>调用分布</h2>
       <table><thead><tr><th>类型</th><th>数量</th><th>Prompt</th><th>Output</th><th>Reasoning</th><th>Total</th><th>估算费用</th></tr></thead><tbody id="bytype"></tbody></table>
     </section>
@@ -93,6 +105,7 @@ MONITOR_HTML = """<!doctype html>
     };
     const fmt = n => Number(n || 0).toLocaleString();
     const money = n => '$' + Number(n || 0).toFixed(n >= 1 ? 4 : 6);
+    let selectedPreviewPath = '';
     function modelKey(model) {
       const m = String(model || '').toLowerCase();
       if (m.includes('v4-pro')) return 'deepseek-v4-pro';
@@ -127,6 +140,86 @@ MONITOR_HTML = """<!doctype html>
       return text.split('\\n').map(line => line.trim()).filter(Boolean).map(line => {
         try { return JSON.parse(line); } catch (_) { return null; }
       }).filter(Boolean);
+    }
+    function truncatePreview(text, limit = 9000) {
+      if (!text) return '';
+      if (text.length <= limit) return text;
+      const head = text.slice(0, Math.floor(limit * 0.62)).trimEnd();
+      const tail = text.slice(-Math.floor(limit * 0.28)).trimStart();
+      return `${head}\\n\\n...[中间预览省略 ${fmt(text.length - head.length - tail.length)} 字符；完整内容见原文件]...\\n\\n${tail}`;
+    }
+    function renderJsonlPreview(text) {
+      const rows = parseJsonl(text);
+      if (!rows.length) return text;
+      return rows.map((row, index) => {
+        const who = [row.slot, row.role_name].filter(Boolean).join(' ');
+        const title = row.call_type || who || `record ${index + 1}`;
+        const content = row.content || row.content_preview || JSON.stringify(row, null, 2);
+        return `## ${title}\\n${content}`;
+      }).join('\\n\\n');
+    }
+    async function fetchPreview(path) {
+      const text = await fetchText(path);
+      if (!text) return '';
+      if (path.endsWith('.jsonl')) return renderJsonlPreview(text);
+      if (path.endsWith('.json')) {
+        try { return JSON.stringify(JSON.parse(text), null, 2); } catch (_) { return text; }
+      }
+      return text;
+    }
+    function latestModelPreview(rows) {
+      const latest = rows.slice(-8).reverse();
+      if (!latest.length) return '暂无模型输出预览。';
+      return latest.map(row => {
+        const usage = row.usage || {};
+        return `## ${row.call_type || 'unknown'} · ${row.client_key || ''}\\nmodel: ${(row.request && row.request.model) || 'unknown'} · tokens: ${fmt(usage.total_tokens)}\\n\\n${row.content_preview || ''}`;
+      }).join('\\n\\n');
+    }
+    function previewCandidates(s, rows, phase) {
+      const loop = String(s.current_loop || 1).padStart(2, '0');
+      const base = `loop_${loop}`;
+      const candidates = [
+        { label: '最新模型输出', path: '__latest_model_outputs__' },
+        { label: 'Compact', path: `${base}/compact.md` },
+        { label: 'Planning', path: `${base}/discussion_plan.md` },
+        { label: 'Stage Report', path: `${base}/stage_report.md` },
+        { label: 'Final', path: 'final/final_summary.md' },
+        { label: 'Run Index', path: 'run_index.md' }
+      ];
+      const lowerPhase = String(phase.desc.name || '').toLowerCase();
+      if (!selectedPreviewPath) {
+        if (lowerPhase.includes('planning')) selectedPreviewPath = `${base}/discussion_plan.md`;
+        else if (lowerPhase.includes('stage')) selectedPreviewPath = `${base}/stage_report.md`;
+        else if (lowerPhase.includes('final')) selectedPreviewPath = 'final/final_summary.md';
+        else if (lowerPhase.includes('compact')) selectedPreviewPath = `${base}/compact.md`;
+        else selectedPreviewPath = '__latest_model_outputs__';
+      }
+      return candidates;
+    }
+    async function updatePreview(s, rows, phase) {
+      const candidates = previewCandidates(s, rows, phase);
+      if (!candidates.some(item => item.path === selectedPreviewPath)) {
+        selectedPreviewPath = candidates[0].path;
+      }
+      document.getElementById('previewTabs').innerHTML = candidates.map(item => (
+        `<button class="preview-button ${item.path === selectedPreviewPath ? 'active' : ''}" data-preview-path="${item.path}">${item.label}</button>`
+      )).join('');
+      for (const button of Array.from(document.querySelectorAll('[data-preview-path]'))) {
+        button.onclick = async () => {
+          selectedPreviewPath = button.getAttribute('data-preview-path') || '';
+          await updatePreview(s, rows, phase);
+        };
+      }
+      let content = '';
+      if (selectedPreviewPath === '__latest_model_outputs__') {
+        content = latestModelPreview(rows);
+      } else {
+        content = await fetchPreview(selectedPreviewPath);
+      }
+      document.getElementById('previewMeta').textContent = selectedPreviewPath === '__latest_model_outputs__'
+        ? '最近 8 次模型输出预览，来自 transcript.jsonl 的 content_preview'
+        : `文件：${selectedPreviewPath}`;
+      document.getElementById('previewBox').textContent = truncatePreview(content || '当前文件还没有生成。');
     }
     function summarizeTranscript(rows) {
       const totals = { prompt: 0, completion: 0, reasoning: 0, visible: 0, total: 0, cacheHit: 0, cacheMiss: 0, cost: 0, cacheKnownRows: 0 };
@@ -233,6 +326,7 @@ MONITOR_HTML = """<!doctype html>
           `<span class="pill">Cache Miss/估算: ${fmt(ts.totals.cacheMiss)}</span>`
         ].join('');
         document.getElementById('events').textContent = (s.events || []).slice(-12).join('\\n');
+        await updatePreview(s, transcriptRows, phase);
         const byType = Object.entries(ts.byType).length ? ts.byType : Object.fromEntries(Object.entries(s.by_type || {}).map(([k,v]) => [k, { count: v, prompt: 0, completion: 0, reasoning: 0, total: 0, cost: 0 }]));
         document.getElementById('bytype').innerHTML = Object.entries(byType).map(([k,v]) => `<tr><td>${k}</td><td>${fmt(v.count)}</td><td>${fmt(v.prompt)}</td><td>${fmt(v.completion)}</td><td>${fmt(v.reasoning)}</td><td>${fmt(v.total)}</td><td>${money(v.cost)}</td></tr>`).join('');
         document.getElementById('pricingNote').textContent = `模型：${ts.models.join(', ') || 'unknown'}。价格表：deepseek-v4-pro input hit $0.145/M、input miss $1.74/M、output $3.48/M；deepseek-v4-flash/chat/reasoner input hit $0.028/M、input miss $0.14/M、output $0.28/M。当前费用为前端估算，实际扣费以 DeepSeek 账单和缓存命中返回为准。`;

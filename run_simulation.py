@@ -55,7 +55,7 @@ def main() -> int:
         },
         "long-run": {
             "coordinator_max_tokens": 65536,
-            "role_max_tokens": 4096,
+            "role_max_tokens": 6144,
             "stage_max_tokens": 65536,
             "final_max_tokens": 65536,
         },

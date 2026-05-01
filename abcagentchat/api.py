@@ -82,8 +82,14 @@ class DeepSeekClient:
             payload["reasoning_effort"] = normalize_reasoning_effort(effort)
         return payload
 
-    def request_meta(self, *, max_tokens: int | None = None, reasoning_effort: str | None = None) -> dict[str, Any]:
-        payload = self.build_payload([], max_tokens=max_tokens, reasoning_effort=reasoning_effort)
+    def request_meta(
+        self,
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        reasoning_effort: str | None = None,
+    ) -> dict[str, Any]:
+        payload = self.build_payload([], max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort)
         return {
             "model": payload["model"],
             "thinking": payload["thinking"],

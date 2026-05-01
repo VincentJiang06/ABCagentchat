@@ -77,9 +77,10 @@ class UtilityTests(unittest.TestCase):
             ModelSettings(
                 model="deepseek-v4-flash",
                 base_url="https://api.deepseek.com",
-                max_tokens=4096,
+                max_tokens=6144,
                 thinking_enabled=True,
                 reasoning_effort="high",
+                temperature=0.8,
             ),
         )
         coordinator_payload = coordinator.build_payload([{"role": "user", "content": "x"}])
@@ -93,6 +94,8 @@ class UtilityTests(unittest.TestCase):
         self.assertEqual(coordinator_override_payload["reasoning_effort"], "high")
         self.assertEqual(role_payload["thinking"], {"type": "enabled"})
         self.assertEqual(role_payload["reasoning_effort"], "high")
+        self.assertEqual(role_payload["max_tokens"], 6144)
+        self.assertEqual(role_payload["temperature"], 0.8)
 
     def test_conversation_appends_assistant_outputs_for_later_rounds(self) -> None:
         conversation = Conversation("system")
@@ -155,6 +158,19 @@ primary_tests:
             self.assertTrue((out / "final" / "final_summary.md").exists())
             self.assertTrue((out / "final" / "output_tree.md").exists())
             self.assertTrue((out / "run_index.md").exists())
+            rows = [
+                json.loads(line)
+                for line in (out / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            first_by_type = {}
+            for row in rows:
+                first_by_type.setdefault(row["call_type"], row["request"])
+            self.assertEqual(first_by_type["compact"]["temperature"], 0.0)
+            self.assertEqual(first_by_type["planning"]["temperature"], 0.2)
+            self.assertEqual(first_by_type["role_A"]["temperature"], 0.8)
+            self.assertEqual(first_by_type["role_A"]["max_tokens"], 6144)
+            self.assertEqual(first_by_type["stage_report"]["temperature"], 0.0)
+            self.assertEqual(first_by_type["final_summary"]["temperature"], 0.5)
             for round_index in range(1, 5):
                 round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)

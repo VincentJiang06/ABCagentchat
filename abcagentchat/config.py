@@ -11,7 +11,7 @@ DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_COORDINATOR_MODEL = "deepseek-v4-pro"
 DEFAULT_ROLE_MODEL = "deepseek-v4-flash"
 COORDINATOR_MAX_TOKENS = 65536
-ROLE_MAX_TOKENS = 4096
+ROLE_MAX_TOKENS = 6144
 
 
 def load_dotenv(path: Path) -> None:
@@ -86,7 +86,7 @@ class AppConfig:
                 max_tokens=ROLE_MAX_TOKENS,
                 thinking_enabled=True,
                 reasoning_effort=os.getenv("DEEPSEEK_ROLE_REASONING", "high"),
-                temperature=0.4,
+                temperature=0.8,
                 timeout=timeout,
             ),
         )

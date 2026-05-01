@@ -77,7 +77,7 @@ def main() -> int:
     result = client.chat(
         deep_final_summary_messages(bundle.text),
         max_tokens=args.max_output_tokens,
-        temperature=0.1,
+        temperature=0.5,
         reasoning_effort="max",
     )
     package_manifest = write_deep_summary_package(
@@ -86,7 +86,7 @@ def main() -> int:
         package_dir=args.package_dir,
         raw_output=args.output,
     )
-    request_meta = client.request_meta(max_tokens=args.max_output_tokens, reasoning_effort="max")
+    request_meta = client.request_meta(max_tokens=args.max_output_tokens, temperature=0.5, reasoning_effort="max")
     append_deep_summary_transcript(run_dir, request_meta, result)
     print(
         "[deep-summary] "

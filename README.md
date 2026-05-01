@@ -7,7 +7,8 @@ The current scenario set is mostly social governance and public-service delibera
 ## Runtime Model Strategy
 
 - Coordinator calls use `deepseek-v4-pro` with thinking enabled and `reasoning_effort=max`.
-- Role A/B/C/D calls use `deepseek-v4-flash` with thinking enabled and `reasoning_effort=high`.
+- Role A/B/C/D calls use `deepseek-v4-flash` with thinking enabled, `reasoning_effort=high`, `max_tokens=6144`, and `temperature=0.8`.
+- Coordinator stage temperatures are explicit per call: compact/archive `0.0`, planning `0.2`, planning repair `0.0`, stage report `0.0`, final/deep summary `0.5`.
 - Compact, planning, compact-archive, stage-report, and final-summary calls explicitly request `reasoning_effort=max` and use large output ceilings so the coordinator can keep richer context and produce more careful visible analysis.
 - The DeepSeek chat API is stateless, so every role subcycle explicitly sends accumulated `messages`: the shared background is placed once in the subcycle system prompt, while later role calls include short role/task prompts plus previous assistant outputs from completed rounds in the same subcycle.
 - Role discussion is round-parallel by default. In each subcycle, A/B/C/D speak at the same time from the same frozen context; after all four finish, their outputs are appended in A/B/C/D order before the next round starts. The default subcycle has three discussion rounds plus a fourth role-summary round.
@@ -48,7 +49,7 @@ Useful controls:
 --rounds-per-subcycle 3
 --no-summary-round
 --recent-context-chars 32000
---role-max-tokens 4096
+--role-max-tokens 6144
 --coordinator-max-tokens 65536
 --stage-max-tokens 65536
 --final-max-tokens 65536

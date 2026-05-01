@@ -13,7 +13,7 @@ from typing import Any
 from .api import ChatResult, DeepSeekClient
 from .background import DEFAULT_FULL_RECENT_COMPACTS, compact_archive_context, recent_context, split_compact_history
 from .compact import compact_messages
-from .config import AppConfig
+from .config import COORDINATOR_MAX_TOKENS, ROLE_MAX_TOKENS, AppConfig
 from .gc import prune_old_runs
 from .metrics import write_metrics
 from .monitor import NullMonitor, RunMonitor
@@ -23,6 +23,13 @@ from .reports import final_summary_messages, stage_report_messages
 from .roles import run_discussion_group
 from .runtime_io import result_summary, safe_slug, write_json, write_text
 from .scenario import Scenario
+
+
+TEMP_COMPACT = 0.0
+TEMP_PLANNING = 0.2
+TEMP_PLANNING_REPAIR = 0.0
+TEMP_STAGE_REPORT = 0.0
+TEMP_FINAL_SUMMARY = 0.5
 
 
 @dataclass
@@ -48,6 +55,8 @@ class DryRunClient:
     def __init__(self, label: str) -> None:
         self.label = label
         default_reasoning = "max" if label == "coordinator" else "high"
+        default_temperature = 0.2 if label == "coordinator" else 0.8
+        default_max_tokens = COORDINATOR_MAX_TOKENS if label == "coordinator" else ROLE_MAX_TOKENS
         self.settings = type(
             "DrySettings",
             (),
@@ -55,19 +64,25 @@ class DryRunClient:
                 "model": "dry-run",
                 "thinking_enabled": True,
                 "reasoning_effort": default_reasoning,
-                "max_tokens": 1024,
-                "temperature": 0.0,
+                "max_tokens": default_max_tokens,
+                "temperature": default_temperature,
             },
         )()
 
-    def request_meta(self, *, max_tokens: int | None = None, reasoning_effort: str | None = None) -> dict[str, Any]:
+    def request_meta(
+        self,
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        reasoning_effort: str | None = None,
+    ) -> dict[str, Any]:
         default_reasoning = "max" if self.label == "coordinator" else "high"
         return {
             "model": "dry-run",
             "thinking": {"type": "enabled"},
             "reasoning_effort": reasoning_effort or default_reasoning,
-            "max_tokens": max_tokens or 1024,
-            "temperature": 0.0,
+            "max_tokens": max_tokens or self.settings.max_tokens,
+            "temperature": self.settings.temperature if temperature is None else temperature,
         }
 
     def chat(
@@ -351,6 +366,7 @@ class Simulator:
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_COMPACT,
         )
 
     def _refresh_compact_archive_summary(
@@ -396,6 +412,7 @@ class Simulator:
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_COMPACT,
         )
         write_text(loop_dir.parent / "compact_archive_summary.md", summary)
         return summary, target_count
@@ -434,6 +451,7 @@ class Simulator:
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_PLANNING,
         )
         try:
             plan = load_discussion_plan(plan_text, max_groups=self.options.max_subcycles)
@@ -467,6 +485,7 @@ class Simulator:
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_PLANNING_REPAIR,
         )
         try:
             return load_discussion_plan(repaired_text, max_groups=self.options.max_subcycles)
@@ -510,6 +529,7 @@ class Simulator:
             errors_path=errors_path,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_STAGE_REPORT,
         )
         print(f"[loop {loop_index}] report_preview={stage_report[:self.options.preview_chars].replace(chr(10), ' ')}", flush=True)
         return stage_report
@@ -536,6 +556,7 @@ class Simulator:
             max_tokens=self.options.final_max_tokens,
             monitor=monitor,
             reasoning_effort="max",
+            temperature=TEMP_FINAL_SUMMARY,
         )
 
     def _write_final_artifacts(self, run_dir: Path, final_summary: str, timeline_items: list[str]) -> None:
@@ -604,6 +625,7 @@ class Simulator:
         max_tokens: int | None = None,
         monitor: RunMonitor | None = None,
         reasoning_effort: str | None = None,
+        temperature: float | None = None,
     ) -> str:
         content, _result = self._call(
             client_key=client_key,
@@ -614,6 +636,7 @@ class Simulator:
             max_tokens=max_tokens,
             monitor=monitor,
             reasoning_effort=reasoning_effort,
+            temperature=temperature,
         )
         write_text(output_path, content)
         return content
@@ -630,11 +653,17 @@ class Simulator:
         monitor: RunMonitor | None = None,
         context_meta: dict[str, Any] | None = None,
         reasoning_effort: str | None = None,
+        temperature: float | None = None,
     ) -> tuple[str, ChatResult]:
         client = self.clients[client_key]
         started = time.time()
         try:
-            result = client.chat(messages, max_tokens=max_tokens, reasoning_effort=reasoning_effort)
+            result = client.chat(
+                messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+            )
         except Exception as exc:
             with self._io_lock:
                 errors_path.parent.mkdir(parents=True, exist_ok=True)
@@ -656,7 +685,11 @@ class Simulator:
             print(f"[error] call_type={call_type} client={client_key} error={exc}", flush=True)
             raise
 
-        request_meta = client.request_meta(max_tokens=max_tokens, reasoning_effort=reasoning_effort) if hasattr(client, "request_meta") else {}
+        request_meta = (
+            client.request_meta(max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort)
+            if hasattr(client, "request_meta")
+            else {}
+        )
         with self._io_lock:
             transcript_path.parent.mkdir(parents=True, exist_ok=True)
             with transcript_path.open("a", encoding="utf-8") as fh:
