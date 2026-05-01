@@ -540,7 +540,8 @@ MONITOR_HTML = """<!doctype html>
         callCount: counts.calls,
         totalTokens: counts.tokens,
         errorCount: counts.errors,
-        status: (batch && batch.status) || (counts.error ? 'error' : counts.running ? 'running' : counts.done === counts.total ? 'done' : 'starting')
+        status: (batch && batch.status) || (counts.error ? 'error' : counts.running ? 'running' : counts.done === counts.total ? 'done' : 'starting'),
+        updatedAt: (batch && batch.updated_at) || ''
       };
     }
     function activePhase(events, currentStep) {
@@ -659,6 +660,7 @@ MONITOR_HTML = """<!doctype html>
         if (batchInfo.visible && batchInfo.isBatchPath) {
           const batchPct = batchInfo.total ? Math.round((batchInfo.done / batchInfo.total) * 100) : 0;
           document.getElementById('scenario').textContent = `Nightly All Tests · ${batchInfo.total} 个流程`;
+          document.getElementById('updated').textContent = '更新：' + (batchInfo.updatedAt || '');
           document.getElementById('status').textContent = batchInfo.status;
           document.getElementById('status').className = statusClass(batchInfo.status);
           document.getElementById('loop').parentElement.querySelector('.label').textContent = '流程';
