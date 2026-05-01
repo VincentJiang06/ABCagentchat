@@ -490,7 +490,8 @@ MONITOR_HTML = """<!doctype html>
         section.hidden = true;
         return { visible: false, isBatchPath, hasBatchData: false };
       }
-      const enriched = await Promise.all(cases.map(item => enrichBatchCase(item, rootStatus)));
+      const rootCaseStatus = batch ? null : rootStatus;
+      const enriched = await Promise.all(cases.map(item => enrichBatchCase(item, rootCaseStatus)));
       const counts = enriched.reduce((acc, item) => {
         acc[item.bucket] = (acc[item.bucket] || 0) + 1;
         acc.total += 1;
@@ -664,10 +665,12 @@ MONITOR_HTML = """<!doctype html>
           document.getElementById('loop').textContent = `${batchInfo.done}/${batchInfo.total}`;
           document.getElementById('phaseName').textContent = 'Batch Monitor';
           document.getElementById('phaseSub').textContent = `${batchInfo.running} running · ${batchInfo.pending} pending`;
-          document.getElementById('calls').textContent = fmt(batchInfo.callCount || transcriptRows.length || s.call_count || 0);
+          document.getElementById('calls').textContent = fmt(batchInfo.callCount || 0);
           document.getElementById('callSub').textContent = `${batchInfo.total} 个流程的聚合调用数`;
-          document.getElementById('tokens').textContent = fmt(batchInfo.totalTokens || tokenTotal);
+          document.getElementById('tokens').textContent = fmt(batchInfo.totalTokens || 0);
           document.getElementById('tokenSub').textContent = `${batchInfo.total} 个流程的聚合 token`;
+          document.getElementById('cost').textContent = batchInfo.totalTokens ? '见单流程' : money(0);
+          document.getElementById('costSub').textContent = '总控页只聚合 token；精确费用和缓存命中在单流程 monitor 查看。';
           document.getElementById('errors').textContent = batchInfo.errorCount || s.error_count || 0;
           document.getElementById('progressBar').style.width = `${batchPct}%`;
         }
@@ -685,6 +688,19 @@ MONITOR_HTML = """<!doctype html>
             `<span class="pill">等待/未知：${batchInfo.pending}</span>`,
             `<span class="pill">错误：${batchInfo.error}</span>`
           ].join('');
+          document.getElementById('tokenBreakdown').innerHTML = [
+            `<span class="pill">聚合调用：${fmt(batchInfo.callCount || 0)}</span>`,
+            `<span class="pill">聚合 token：${fmt(batchInfo.totalTokens || 0)}</span>`,
+            `<span class="pill">聚合错误：${fmt(batchInfo.errorCount || 0)}</span>`,
+            `<span class="pill">批次完成：${batchInfo.done}/${batchInfo.total}</span>`
+          ].join('');
+          document.getElementById('events').textContent = `批量运行中：${batchInfo.running} running · ${batchInfo.pending} pending · ${batchInfo.done} done`;
+          document.getElementById('previewTabs').innerHTML = '';
+          document.getElementById('previewMeta').textContent = '批量总控';
+          document.getElementById('previewBox').textContent = `当前页面聚合 ${batchInfo.total} 个流程。点击每个 CASE 卡片的单流程 monitor 查看该 case 的阶段、token、费用估算和产物预览。`;
+          document.getElementById('bytype').innerHTML = '<tr><td colspan="7">批量页不混用根目录旧 transcript；调用类型拆分请打开单流程 monitor 查看。</td></tr>';
+          document.getElementById('pricingNote').textContent = '批量页只展示跨流程进度和 token 聚合，精确模型/缓存费用以单流程 monitor 和 DeepSeek 账单为准。';
+          return;
         }
         document.getElementById('tokenBreakdown').innerHTML = [
           `<span class="pill">Prompt: ${fmt(ts.totals.prompt)}</span>`,

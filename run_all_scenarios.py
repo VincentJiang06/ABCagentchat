@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -30,6 +31,33 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     temp = path.with_suffix(path.suffix + ".tmp")
     temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temp.replace(path)
+
+
+def cert_file() -> str:
+    if os.environ.get("SSL_CERT_FILE"):
+        return os.environ["SSL_CERT_FILE"]
+    try:
+        import certifi  # type: ignore
+
+        return certifi.where()
+    except Exception:
+        pass
+    for candidate in (
+        "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/certifi/cacert.pem",
+        "/opt/homebrew/lib/python3.11/site-packages/certifi/cacert.pem",
+    ):
+        if Path(candidate).exists():
+            return candidate
+    return ""
+
+
+def child_env() -> dict[str, str]:
+    env = os.environ.copy()
+    cert = cert_file()
+    if cert:
+        env.setdefault("SSL_CERT_FILE", cert)
+        env.setdefault("REQUESTS_CA_BUNDLE", cert)
+    return env
 
 
 def scenario_index(path: Path) -> int:
@@ -205,6 +233,7 @@ def main() -> int:
                 proc = subprocess.Popen(
                     cmd,
                     cwd=root,
+                    env=child_env(),
                     stdout=stdout_log,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -223,6 +252,7 @@ def main() -> int:
                 audit = subprocess.run(
                     [sys.executable, str(root / "audit_run.py"), str(run_dir), "--write"],
                     cwd=root,
+                    env=child_env(),
                     text=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
