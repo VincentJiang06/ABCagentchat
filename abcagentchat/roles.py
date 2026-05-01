@@ -81,6 +81,7 @@ def run_discussion_group(
         "group_id": group_id,
         "title": group_title,
         "purpose": group.get("purpose"),
+        "conflict_axis": group.get("conflict_axis"),
     }
     conversation = Conversation(
         ROLE_SYSTEM

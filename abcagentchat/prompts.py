@@ -118,7 +118,8 @@ def compact_prompt(
 def deliberation_plan_prompt(scenario: Scenario, compact: str, *, max_groups: int, background_context: str = "") -> str:
     return f"""请根据场景和 compact 设计本循环的子讨论结构和视角人格。
 
-你最多可以设计 {max_groups} 个子讨论组。每个子讨论组必须包含 A/B/C/D 四个角色。
+你最多可以设计 {max_groups} 个子讨论组。当前执行器已经支持多个子讨论组按顺序运行，但每个子讨论组的角色槽位固定为 A/B/C/D 四个角色。
+不要输出三人组、五人组或动态角色数量；如果一个议题不值得拆成多个子讨论组，就只输出 1 个综合组，不要为了填满上限而强拆。
 本轮 planning 的核心不是让四个固定角色一路走到底，而是为同一抽象问题创造不同视角之间的真实碰撞。你可以让某些视角跨轮保留，但必须在 planning_note 中说明理由：它保留了什么独特冲突、证据记忆或价值位置。
 
 如果议题适合拆分，请按“视角生态”而不是按行政部门机械拆分。例如“大学是否应该有晚自习”可拆成：
@@ -139,6 +140,12 @@ def deliberation_plan_prompt(scenario: Scenario, compact: str, *, max_groups: in
 
 背景资料（原始议题 + 前序循环 compact 档案）：
 {background_context or "暂无历史 compact。"}
+
+兼容性要求：
+- `groups` 可以有 1 到 {max_groups} 个；执行器会按顺序运行每个 group。
+- 每个 group 必须正好包含 A/B/C/D 四个 slot；不要省略 D，也不要新增 E。
+- 每个 group 的 `group_id` 要短且稳定，例如 `a`、`b`、`c`；不要使用会造成文件名混乱的长句。
+- 不要在同一轮设计过多相似子组；优先让每个子组拥有清晰、互不重复的 conflict_axis。
 
 角色设计要求：
 - 每个角色都要有明确利益来源、政治/治理观点和论证习惯。

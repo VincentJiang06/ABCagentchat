@@ -227,6 +227,7 @@ class RolesModuleTests(unittest.TestCase):
             self.assertIn("原始议题 + compact 历史", str(calls[0]["system"]))
             self.assertIn("当前 compact", str(calls[0]["system"]))
             self.assertIn("recent", str(calls[0]["system"]))
+            self.assertIn("conflict_axis", str(calls[0]["system"]))
             for call in calls:
                 self.assertNotIn("原始议题 + compact 历史", str(call["user_text"]))
                 self.assertNotIn("本轮此前角色发言", str(call["user_text"]))
