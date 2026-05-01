@@ -172,7 +172,7 @@ MONITOR_HTML = """<!doctype html>
     </div>
     <div class="progress"><div id="progressBar"></div></div>
     <section id="batchSection" hidden>
-      <h2>十一流程总览</h2>
+      <h2>测试流程总览</h2>
       <div class="batch-summary" id="batchSummary"></div>
       <div class="batch-grid" id="batchGrid"></div>
     </section>
@@ -238,11 +238,20 @@ MONITOR_HTML = """<!doctype html>
       { index: 4, slug: '04_platform_worker_rights', title: '新就业形态骑手权益协商议案', scenario: 'scenarios/04_platform_worker_rights.md' },
       { index: 5, slug: '05_community_eldercare_station', title: '社区养老服务站资源配置议案', scenario: 'scenarios/05_community_eldercare_station.md' },
       { index: 6, slug: '06_primary_health_chronic_disease', title: '基层慢病筛查与社区健康服务议案', scenario: 'scenarios/06_primary_health_chronic_disease.md' },
-      { index: 7, slug: '07_property_service_supervision', title: '物业服务质量与业委会监督议案', scenario: 'scenarios/07_property_service_supervision.md' },
       { index: 8, slug: '08_urban_underground_space', title: '城市地下空间与公共通道使用议案', scenario: 'scenarios/08_urban_underground_space.md' },
       { index: 9, slug: '09_embedded_community_services', title: '社区嵌入式服务设施运营议案', scenario: 'scenarios/09_embedded_community_services.md' },
       { index: 10, slug: '10_university_ai_academic_integrity', title: '大学 AI 学术诚信与学生权益建议议案', scenario: 'scenarios/10_university_ai_academic_integrity.md' },
-      { index: 11, slug: '11_university_evening_self_study', title: '大学是否应该有晚自习议案', scenario: 'scenarios/11_university_evening_self_study.md' }
+      { index: 11, slug: '11_university_evening_self_study', title: '大学是否应该有晚自习议案', scenario: 'scenarios/11_university_evening_self_study.md' },
+      { index: 12, slug: '12_ai_created_art_status', title: 'AI 创作内容是否算作艺术议案', scenario: 'scenarios/12_ai_created_art_status.md' },
+      { index: 13, slug: '13_ai_regulation_next_steps', title: 'AI 应该如何进一步监管议案', scenario: 'scenarios/13_ai_regulation_next_steps.md' },
+      { index: 14, slug: '14_ai_teen_education_use', title: 'AI 是否应被用于青少年教育议案', scenario: 'scenarios/14_ai_teen_education_use.md' },
+      { index: 15, slug: '15_sexual_content_social_harm', title: '色情内容与软色情是否对社会有害议案', scenario: 'scenarios/15_sexual_content_social_harm.md' },
+      { index: 16, slug: '16_metaverse_real_world_impact', title: '元宇宙概念对现实社会冲击议案', scenario: 'scenarios/16_metaverse_real_world_impact.md' },
+      { index: 17, slug: '17_ai_productivity_communism', title: 'AI 生产力爆炸后是否可能达成共产主义社会议案', scenario: 'scenarios/17_ai_productivity_communism.md' },
+      { index: 18, slug: '18_new_confucianism_reasonableness', title: '新儒家理论是否具有合理性议案', scenario: 'scenarios/18_new_confucianism_reasonableness.md' },
+      { index: 19, slug: '19_china_next_20_years_expansion', title: '中国未来二十年影响力扩张路径议案', scenario: 'scenarios/19_china_next_20_years_expansion.md' },
+      { index: 20, slug: '20_betel_nut_drug_classification', title: '槟榔是否应被视为毒品或成瘾性风险品议案', scenario: 'scenarios/20_betel_nut_drug_classification.md' },
+      { index: 21, slug: '21_online_social_relationships', title: '线上社交是否毁灭现实人际关系议案', scenario: 'scenarios/21_online_social_relationships.md' }
     ];
     function modelKey(model) {
       const m = String(model || '').toLowerCase();
@@ -656,9 +665,9 @@ MONITOR_HTML = """<!doctype html>
           document.getElementById('phaseName').textContent = 'Batch Monitor';
           document.getElementById('phaseSub').textContent = `${batchInfo.running} running · ${batchInfo.pending} pending`;
           document.getElementById('calls').textContent = fmt(batchInfo.callCount || transcriptRows.length || s.call_count || 0);
-          document.getElementById('callSub').textContent = '11 个流程的聚合调用数';
+          document.getElementById('callSub').textContent = `${batchInfo.total} 个流程的聚合调用数`;
           document.getElementById('tokens').textContent = fmt(batchInfo.totalTokens || tokenTotal);
-          document.getElementById('tokenSub').textContent = '11 个流程的聚合 token';
+          document.getElementById('tokenSub').textContent = `${batchInfo.total} 个流程的聚合 token`;
           document.getElementById('errors').textContent = batchInfo.errorCount || s.error_count || 0;
           document.getElementById('progressBar').style.width = `${batchPct}%`;
         }
@@ -669,7 +678,7 @@ MONITOR_HTML = """<!doctype html>
           `<span class="pill">状态文件调用：${fmt(s.call_count || 0)}</span>`
         ].join('');
         if (batchInfo.visible && batchInfo.isBatchPath) {
-          document.getElementById('phaseDescription').textContent = '总控页正在聚合 11 个测试流程。每个流程会优先读取 batch_status.json 中的状态，也可以读取子目录 status.json；单流程详情继续在各自 monitor 页面查看。';
+          document.getElementById('phaseDescription').textContent = `总控页正在聚合 ${batchInfo.total} 个测试流程。每个流程会优先读取 batch_status.json 中的状态，也可以读取子目录 status.json；单流程详情继续在各自 monitor 页面查看。`;
           document.getElementById('phaseDetail').innerHTML = [
             `<span class="pill">完成：${batchInfo.done}/${batchInfo.total}</span>`,
             `<span class="pill">运行中：${batchInfo.running}</span>`,

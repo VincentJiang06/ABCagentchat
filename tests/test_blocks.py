@@ -47,6 +47,14 @@ primary_tests:
             self.assertEqual(scenario.title, "A")
             self.assertEqual(scenario.loops, 5)
 
+    def test_repository_scenario_dataset_has_twenty_cases(self) -> None:
+        scenario_dir = Path(__file__).resolve().parents[1] / "scenarios"
+        paths = sorted(scenario_dir.glob("*.md"))
+        self.assertEqual(len(paths), 20)
+        scenarios = [load_scenario(path) for path in paths]
+        self.assertTrue(all(scenario.loops == 5 for scenario in scenarios))
+        self.assertEqual(len({scenario.title for scenario in scenarios}), 20)
+
 
 class UtilityTests(unittest.TestCase):
     def test_parse_json_object_accepts_fenced_json(self) -> None:

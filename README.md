@@ -2,7 +2,7 @@
 
 ABCagentchat is an open-ended deliberation simulator for testing long-running multi-agent discussion. It focuses on whether a simulated meeting can preserve facts, respect authority boundaries, surface political and governance tradeoffs, keep strong disagreement visible, rotate perspectives when useful, and produce auditable reports.
 
-The current scenario set is mostly social governance and public-service deliberation, with one university scenario as a control case. All organizations, characters, meetings, budgets, and decisions are fictionalized.
+The current scenario set contains 20 fictionalized deliberation cases across community governance, public services, university policy, AI governance, digital society, political economy, public health, philosophy, and geopolitics. All organizations, characters, meetings, budgets, and decisions are fictionalized.
 
 ## Runtime Model Strategy
 
