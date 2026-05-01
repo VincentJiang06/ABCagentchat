@@ -8,9 +8,10 @@ from .api import ModelSettings
 
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-v4-pro"
+DEFAULT_COORDINATOR_MODEL = "deepseek-v4-pro"
+DEFAULT_ROLE_MODEL = "deepseek-v4-pro"
 COORDINATOR_MAX_TOKENS = 65536
-ROLE_MAX_TOKENS = 32768
+ROLE_MAX_TOKENS = 4096
 
 
 def load_dotenv(path: Path) -> None:
@@ -32,7 +33,8 @@ class AppConfig:
     coordinator_key: str
     role_keys: dict[str, str]
     base_url: str
-    model: str
+    coordinator_model: str
+    role_model: str
     coordinator_settings: ModelSettings
     role_settings: ModelSettings
 
@@ -40,7 +42,12 @@ class AppConfig:
     def from_env(cls, root: Path, *, timeout: int = 600) -> "AppConfig":
         load_dotenv(root / ".env")
         base_url = os.getenv("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
-        model = os.getenv("DEEPSEEK_MODEL", DEFAULT_MODEL)
+        coordinator_model = (
+            os.getenv("DEEPSEEK_COORDINATOR_MODEL")
+            or os.getenv("DEEPSEEK_MODEL")
+            or DEFAULT_COORDINATOR_MODEL
+        )
+        role_model = os.getenv("DEEPSEEK_ROLE_MODEL") or DEFAULT_ROLE_MODEL
         coordinator_key = os.getenv("DEEPSEEK_COORDINATOR_KEY") or os.getenv("DEEPSEEK_API_KEY") or ""
         role_keys = {
             "A": os.getenv("DEEPSEEK_ROLE_A_KEY") or "",
@@ -62,22 +69,24 @@ class AppConfig:
             coordinator_key=coordinator_key,
             role_keys=role_keys,
             base_url=base_url,
-            model=model,
+            coordinator_model=coordinator_model,
+            role_model=role_model,
             coordinator_settings=ModelSettings(
-                model=model,
+                model=coordinator_model,
                 base_url=base_url,
                 max_tokens=COORDINATOR_MAX_TOKENS,
-                reasoning_effort="max",
+                thinking_enabled=True,
+                reasoning_effort=os.getenv("DEEPSEEK_COORDINATOR_REASONING", "max"),
                 temperature=0.2,
                 timeout=timeout,
             ),
             role_settings=ModelSettings(
-                model=model,
+                model=role_model,
                 base_url=base_url,
                 max_tokens=ROLE_MAX_TOKENS,
-                reasoning_effort="max",
+                thinking_enabled=False,
+                reasoning_effort=None,
                 temperature=0.4,
                 timeout=timeout,
             ),
         )
-

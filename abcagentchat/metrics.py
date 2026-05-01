@@ -6,13 +6,11 @@ from typing import Any
 
 
 EXPECTED_LOOP_FILES = [
+    "background_context.md",
     "compact.md",
-    "personas.raw.json",
-    "personas.json",
-    "personas.md",
-    "discussion_round_01.jsonl",
-    "discussion_round_02.jsonl",
-    "discussion_round_03.jsonl",
+    "discussion_plan.raw.json",
+    "discussion_plan.json",
+    "discussion_plan.md",
     "stage_report.md",
 ]
 
@@ -53,8 +51,13 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
     run_config_path = run_dir / "run_config.json"
     run_config = json.loads(run_config_path.read_text(encoding="utf-8")) if run_config_path.exists() else {}
     loops = int((run_config.get("scenario") or {}).get("loops") or 0)
+    options = run_config.get("options") or {}
+    rounds_per_subcycle = int(options.get("rounds_per_subcycle") or 1)
     transcript = summarize_transcript(run_dir / "transcript.jsonl")
-    expected_calls = loops * 15 + 1 if loops else None
+    expected_calls = 1 if loops else None
+    optional_repair_calls = int((transcript.get("by_type") or {}).get("planning_repair") or 0)
+    if expected_calls is not None:
+        expected_calls += optional_repair_calls
 
     missing_files: list[str] = []
     if not (run_dir / "input.md").exists():
@@ -73,9 +76,25 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
             path = loop_dir / name
             if not path.exists():
                 missing_files.append(str(path.relative_to(run_dir)))
-        for round_index in range(1, 4):
-            round_path = loop_dir / f"discussion_round_{round_index:02d}.jsonl"
-            round_line_counts[str(round_path.relative_to(run_dir))] = len(load_jsonl(round_path))
+        plan_path = loop_dir / "discussion_plan.json"
+        groups = []
+        if plan_path.exists():
+            groups = (json.loads(plan_path.read_text(encoding="utf-8")).get("groups") or [])
+        if expected_calls is not None:
+            expected_calls += 3 + len(groups) * rounds_per_subcycle * 4
+        for subcycle_index, group in enumerate(groups, start=1):
+            group_id = str(group.get("group_id") or subcycle_index)
+            subcycle_dirs = sorted(loop_dir.glob(f"subcycle_{subcycle_index:02d}_*"))
+            if not subcycle_dirs:
+                missing_files.append(f"loop_{index:02d}/subcycle_{subcycle_index:02d}_{group_id}")
+                continue
+            subcycle_dir = subcycle_dirs[0]
+            for round_index in range(1, rounds_per_subcycle + 1):
+                round_path = subcycle_dir / f"discussion_round_{round_index:02d}.jsonl"
+                if not round_path.exists():
+                    missing_files.append(str(round_path.relative_to(run_dir)))
+                    continue
+                round_line_counts[str(round_path.relative_to(run_dir))] = len(load_jsonl(round_path))
 
     failed_rounds = {
         path: count for path, count in round_line_counts.items() if count != 4

@@ -8,6 +8,8 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from abcagentchat.api import DeepSeekClient, ModelSettings, normalize_reasoning_effort
+from abcagentchat.conversation import Conversation
 from abcagentchat.gc import prune_old_runs, trim_text
 from abcagentchat.metrics import audit_run_dir
 from abcagentchat.scenario import load_scenario, parse_frontmatter
@@ -54,6 +56,50 @@ class UtilityTests(unittest.TestCase):
     def test_safe_slug_and_trim_text(self) -> None:
         self.assertEqual(safe_slug("  A / B?  "), "A-B")
         self.assertEqual(trim_text("abcdef", 3), "def")
+
+    def test_reasoning_effort_aliases(self) -> None:
+        self.assertEqual(normalize_reasoning_effort("long"), "high")
+        self.assertEqual(normalize_reasoning_effort("extra long"), "max")
+
+    def test_deepseek_payload_thinking_modes(self) -> None:
+        coordinator = DeepSeekClient(
+            "key",
+            ModelSettings(
+                model="deepseek-v4-pro",
+                base_url="https://api.deepseek.com",
+                max_tokens=8192,
+                thinking_enabled=True,
+                reasoning_effort="max",
+            ),
+        )
+        role = DeepSeekClient(
+            "key",
+            ModelSettings(
+                model="deepseek-v4-pro",
+                base_url="https://api.deepseek.com",
+                max_tokens=4096,
+                thinking_enabled=False,
+                reasoning_effort=None,
+            ),
+        )
+        coordinator_payload = coordinator.build_payload([{"role": "user", "content": "x"}])
+        role_payload = role.build_payload([{"role": "user", "content": "x"}])
+        self.assertEqual(coordinator_payload["thinking"], {"type": "enabled"})
+        self.assertEqual(coordinator_payload["reasoning_effort"], "max")
+        self.assertEqual(role_payload["thinking"], {"type": "disabled"})
+        self.assertNotIn("reasoning_effort", role_payload)
+
+    def test_conversation_appends_assistant_outputs_for_later_rounds(self) -> None:
+        conversation = Conversation("system")
+        first = conversation.messages_for("user-1")
+        conversation.append_exchange("user-1", "assistant-1")
+        second = conversation.messages_for("user-2")
+        conversation.append_exchange("user-2", "assistant-2")
+        third = conversation.messages_for("user-3")
+        self.assertEqual([message["role"] for message in first], ["system", "user"])
+        self.assertIn({"role": "assistant", "content": "assistant-1"}, second)
+        self.assertIn({"role": "assistant", "content": "assistant-1"}, third)
+        self.assertIn({"role": "assistant", "content": "assistant-2"}, third)
 
     def test_prune_old_runs_keeps_newest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,7 +148,7 @@ primary_tests:
             self.assertTrue(metrics["passed"], metrics)
             self.assertEqual(metrics["transcript"]["call_count"], 16)
             for round_index in range(1, 4):
-                round_path = out / "loop_01" / f"discussion_round_{round_index:02d}.jsonl"
+                round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)
 
     def test_dry_run_two_loops_expected_call_formula(self) -> None:
@@ -120,6 +166,23 @@ primary_tests:
             self.assertTrue(metrics["passed"], metrics)
             self.assertEqual(metrics["expected_calls"], 31)
             self.assertEqual(metrics["transcript"]["call_count"], 31)
+            loop2_background = (out / "loop_02" / "background_context.md").read_text(encoding="utf-8")
+            self.assertIn("第 1 个循环 compact", loop2_background)
+            self.assertIn("# 原始议题全文", loop2_background)
+
+    def test_loop_cap_defaults_to_100(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scenario_path = root / "scenario.md"
+            scenario_path.write_text("---\ntitle: 百轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
+            scenario = load_scenario(scenario_path)
+            out = root / "runs" / "cap"
+            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
+            with redirect_stdout(StringIO()):
+                simulator.run(scenario)
+            run_config = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_config["scenario"]["requested_loops"], 150)
+            self.assertEqual(run_config["scenario"]["loops"], 100)
 
     def test_audit_detects_missing_round_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,26 +190,39 @@ primary_tests:
             (run / "loop_01").mkdir()
             (run / "input.md").write_text("input", encoding="utf-8")
             (run / "final_summary.md").write_text("final", encoding="utf-8")
-            (run / "run_config.json").write_text(json.dumps({"scenario": {"loops": 1}}), encoding="utf-8")
+            (run / "run_config.json").write_text(
+                json.dumps({"scenario": {"loops": 1}, "options": {"rounds_per_subcycle": 3}}),
+                encoding="utf-8",
+            )
             for name in [
+                "background_context.md",
                 "compact.md",
-                "personas.raw.json",
-                "personas.json",
-                "personas.md",
+                "discussion_plan.raw.json",
+                "discussion_plan.json",
+                "discussion_plan.md",
                 "stage_report.md",
             ]:
                 (run / "loop_01" / name).write_text("x", encoding="utf-8")
-            for round_index in range(1, 4):
-                rows = 4 if round_index != 2 else 3
-                (run / "loop_01" / f"discussion_round_{round_index:02d}.jsonl").write_text(
-                    "\n".join("{}" for _ in range(rows)) + "\n",
+            (run / "loop_01" / "discussion_plan.json").write_text(
+                json.dumps({"groups": [{"group_id": "a"}]}),
+                encoding="utf-8",
+            )
+            subcycle = run / "loop_01" / "subcycle_01_a"
+            subcycle.mkdir()
+            (subcycle / "discussion_round_01.jsonl").write_text(
+                "\n".join("{}" for _ in range(3)) + "\n",
+                encoding="utf-8",
+            )
+            for round_index in [2, 3]:
+                (subcycle / f"discussion_round_{round_index:02d}.jsonl").write_text(
+                    "\n".join("{}" for _ in range(4)) + "\n",
                     encoding="utf-8",
                 )
             (run / "transcript.jsonl").write_text("\n".join(json.dumps({"usage": {}, "content_preview": "x"}) for _ in range(16)) + "\n", encoding="utf-8")
 
             metrics = audit_run_dir(run)
             self.assertFalse(metrics["passed"])
-            self.assertIn("loop_01/discussion_round_02.jsonl", metrics["failed_rounds"])
+            self.assertIn("loop_01/subcycle_01_a/discussion_round_01.jsonl", metrics["failed_rounds"])
 
 
 if __name__ == "__main__":
