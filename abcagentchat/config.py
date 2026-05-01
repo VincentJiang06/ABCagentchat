@@ -9,7 +9,7 @@ from .api import ModelSettings
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_COORDINATOR_MODEL = "deepseek-v4-pro"
-DEFAULT_ROLE_MODEL = "deepseek-v4-pro"
+DEFAULT_ROLE_MODEL = "deepseek-v4-flash"
 COORDINATOR_MAX_TOKENS = 65536
 ROLE_MAX_TOKENS = 4096
 
@@ -84,8 +84,8 @@ class AppConfig:
                 model=role_model,
                 base_url=base_url,
                 max_tokens=ROLE_MAX_TOKENS,
-                thinking_enabled=False,
-                reasoning_effort=None,
+                thinking_enabled=True,
+                reasoning_effort=os.getenv("DEEPSEEK_ROLE_REASONING", "high"),
                 temperature=0.4,
                 timeout=timeout,
             ),

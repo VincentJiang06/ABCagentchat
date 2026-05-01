@@ -75,19 +75,24 @@ class UtilityTests(unittest.TestCase):
         role = DeepSeekClient(
             "key",
             ModelSettings(
-                model="deepseek-v4-pro",
+                model="deepseek-v4-flash",
                 base_url="https://api.deepseek.com",
                 max_tokens=4096,
-                thinking_enabled=False,
-                reasoning_effort=None,
+                thinking_enabled=True,
+                reasoning_effort="high",
             ),
         )
         coordinator_payload = coordinator.build_payload([{"role": "user", "content": "x"}])
+        coordinator_override_payload = coordinator.build_payload(
+            [{"role": "user", "content": "x"}],
+            reasoning_effort="high",
+        )
         role_payload = role.build_payload([{"role": "user", "content": "x"}])
         self.assertEqual(coordinator_payload["thinking"], {"type": "enabled"})
         self.assertEqual(coordinator_payload["reasoning_effort"], "max")
-        self.assertEqual(role_payload["thinking"], {"type": "disabled"})
-        self.assertNotIn("reasoning_effort", role_payload)
+        self.assertEqual(coordinator_override_payload["reasoning_effort"], "high")
+        self.assertEqual(role_payload["thinking"], {"type": "enabled"})
+        self.assertEqual(role_payload["reasoning_effort"], "high")
 
     def test_conversation_appends_assistant_outputs_for_later_rounds(self) -> None:
         conversation = Conversation("system")
@@ -146,8 +151,11 @@ primary_tests:
 
             metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
-            self.assertEqual(metrics["transcript"]["call_count"], 16)
-            for round_index in range(1, 4):
+            self.assertEqual(metrics["transcript"]["call_count"], 20)
+            self.assertTrue((out / "final" / "final_summary.md").exists())
+            self.assertTrue((out / "final" / "output_tree.md").exists())
+            self.assertTrue((out / "run_index.md").exists())
+            for round_index in range(1, 5):
                 round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)
 
@@ -164,17 +172,49 @@ primary_tests:
 
             metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
-            self.assertEqual(metrics["expected_calls"], 31)
-            self.assertEqual(metrics["transcript"]["call_count"], 31)
+            self.assertEqual(metrics["expected_calls"], 39)
+            self.assertEqual(metrics["transcript"]["call_count"], 39)
             loop2_background = (out / "loop_02" / "background_context.md").read_text(encoding="utf-8")
             self.assertIn("第 1 个循环 compact", loop2_background)
             self.assertIn("# 原始议题全文", loop2_background)
 
-    def test_loop_cap_defaults_to_100(self) -> None:
+    def test_dry_run_rolls_older_compacts_into_max_effort_summary_and_gradient_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scenario_path = root / "scenario.md"
-            scenario_path.write_text("---\ntitle: 百轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
+            scenario_path.write_text("---\ntitle: 六轮议案\nloops: 6\n---\n# 情景设定\n测试。", encoding="utf-8")
+            scenario = load_scenario(scenario_path)
+            out = root / "runs" / "six-loops"
+            simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
+            with redirect_stdout(StringIO()):
+                simulator.run(scenario)
+
+            metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+            self.assertTrue(metrics["passed"], metrics)
+            self.assertEqual(metrics["expected_calls"], 116)
+            self.assertEqual(metrics["transcript"]["by_type"]["compact_archive_summary"], 1)
+
+            loop6_background = (out / "loop_06" / "background_context.md").read_text(encoding="utf-8")
+            self.assertIn("第 1-1 个循环 compact 滚动开放讨论账本摘要", loop6_background)
+            self.assertIn("更早 Compact 滚动开放讨论账本", loop6_background)
+            self.assertIn("第 1 个循环 compact（梯度摘录", loop6_background)
+            self.assertIn("## 第 2 个循环 compact（全文）\n# Compact 开放讨论状态账本", loop6_background)
+            self.assertIn("## 第 5 个循环 compact（全文）\n# Compact 开放讨论状态账本", loop6_background)
+            self.assertTrue((out / "compact_archive_summary.md").exists())
+
+            rows = [
+                json.loads(line)
+                for line in (out / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            archive_rows = [row for row in rows if row["call_type"] == "compact_archive_summary"]
+            self.assertEqual(archive_rows[0]["request"]["thinking"], {"type": "enabled"})
+            self.assertEqual(archive_rows[0]["request"]["reasoning_effort"], "max")
+
+    def test_loop_cap_defaults_to_10(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scenario_path = root / "scenario.md"
+            scenario_path.write_text("---\ntitle: 十轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
             scenario = load_scenario(scenario_path)
             out = root / "runs" / "cap"
             simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
@@ -182,7 +222,7 @@ primary_tests:
                 simulator.run(scenario)
             run_config = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
             self.assertEqual(run_config["scenario"]["requested_loops"], 150)
-            self.assertEqual(run_config["scenario"]["loops"], 100)
+            self.assertEqual(run_config["scenario"]["loops"], 10)
 
     def test_audit_detects_missing_round_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -191,7 +231,7 @@ primary_tests:
             (run / "input.md").write_text("input", encoding="utf-8")
             (run / "final_summary.md").write_text("final", encoding="utf-8")
             (run / "run_config.json").write_text(
-                json.dumps({"scenario": {"loops": 1}, "options": {"rounds_per_subcycle": 3}}),
+                json.dumps({"scenario": {"loops": 1}, "options": {"rounds_per_subcycle": 3, "role_summary_round": True}}),
                 encoding="utf-8",
             )
             for name in [
@@ -213,12 +253,12 @@ primary_tests:
                 "\n".join("{}" for _ in range(3)) + "\n",
                 encoding="utf-8",
             )
-            for round_index in [2, 3]:
+            for round_index in [2, 3, 4]:
                 (subcycle / f"discussion_round_{round_index:02d}.jsonl").write_text(
                     "\n".join("{}" for _ in range(4)) + "\n",
                     encoding="utf-8",
                 )
-            (run / "transcript.jsonl").write_text("\n".join(json.dumps({"usage": {}, "content_preview": "x"}) for _ in range(16)) + "\n", encoding="utf-8")
+            (run / "transcript.jsonl").write_text("\n".join(json.dumps({"usage": {}, "content_preview": "x"}) for _ in range(20)) + "\n", encoding="utf-8")
 
             metrics = audit_run_dir(run)
             self.assertFalse(metrics["passed"])

@@ -18,9 +18,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=600, help="Per-request timeout in seconds.")
     parser.add_argument("--dry-run", action="store_true", help="Run without network/API calls.")
     parser.add_argument("--recent-context-chars", type=int, default=32000)
-    parser.add_argument("--max-loops", type=int, default=100, help="Hard cap for discussion loops.")
+    parser.add_argument("--max-loops", type=int, default=10, help="Hard cap for discussion loops.")
     parser.add_argument("--max-subcycles", type=int, default=3, help="Maximum discussion subcycles per loop.")
     parser.add_argument("--rounds-per-subcycle", type=int, default=3, help="Role speaking rounds per subcycle.")
+    parser.add_argument("--no-summary-round", action="store_true", help="Disable the fourth parallel role summary round.")
     parser.add_argument("--enable-monitor", action="store_true", help="Write monitor.html/status.json. Disabled by default.")
     parser.add_argument(
         "--profile",
@@ -53,10 +54,10 @@ def main() -> int:
             "final_max_tokens": None,
         },
         "long-run": {
-            "coordinator_max_tokens": 16384,
+            "coordinator_max_tokens": 65536,
             "role_max_tokens": 4096,
-            "stage_max_tokens": 16384,
-            "final_max_tokens": 32768,
+            "stage_max_tokens": 65536,
+            "final_max_tokens": 65536,
         },
     }[args.profile]
     options = RunOptions(
@@ -68,6 +69,7 @@ def main() -> int:
         max_loops=args.max_loops,
         max_subcycles=args.max_subcycles,
         rounds_per_subcycle=args.rounds_per_subcycle,
+        role_summary_round=not args.no_summary_round,
         coordinator_max_tokens=args.coordinator_max_tokens or profile_defaults["coordinator_max_tokens"],
         role_max_tokens=args.role_max_tokens or profile_defaults["role_max_tokens"],
         stage_max_tokens=args.stage_max_tokens or profile_defaults["stage_max_tokens"],

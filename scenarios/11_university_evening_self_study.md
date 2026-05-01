@@ -1,6 +1,6 @@
 ---
 title: 大学是否应该有晚自习议案
-loops: 50
+loops: 5
 domain: university_internal_deliberation
 source_refs: []
 primary_tests:
@@ -59,4 +59,3 @@ primary_tests:
 - 是否提出可撤销的试点，而非一次性全校铺开。
 - 是否能保留学生自治和教师支持的双重机制。
 - 是否明确哪些事项需要教务处、学院、本科生院、学生会分别负责。
-

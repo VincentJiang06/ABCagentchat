@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
+import threading
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -9,14 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from .api import ChatResult, DeepSeekClient
-from .background import compact_archive_context, recent_context
+from .background import DEFAULT_FULL_RECENT_COMPACTS, compact_archive_context, recent_context, split_compact_history
 from .compact import compact_messages
 from .config import AppConfig
 from .gc import prune_old_runs
 from .metrics import write_metrics
 from .monitor import NullMonitor, RunMonitor
 from .planning import default_discussion_plan, load_discussion_plan, render_discussion_plan
-from .prompts import COORDINATOR_SYSTEM, deliberation_plan_prompt, json_repair_prompt
+from .prompts import COORDINATOR_SYSTEM, compact_archive_summary_prompt, deliberation_plan_prompt, json_repair_prompt
 from .reports import final_summary_messages, stage_report_messages
 from .roles import run_discussion_group
 from .runtime_io import result_summary, safe_slug, write_json, write_text
@@ -31,9 +33,10 @@ class RunOptions:
     timeout: int = 600
     recent_context_chars: int = 32000
     preview_chars: int = 260
-    max_loops: int = 100
+    max_loops: int = 10
     max_subcycles: int = 3
     rounds_per_subcycle: int = 3
+    role_summary_round: bool = True
     coordinator_max_tokens: int | None = None
     role_max_tokens: int | None = None
     stage_max_tokens: int | None = None
@@ -44,28 +47,37 @@ class RunOptions:
 class DryRunClient:
     def __init__(self, label: str) -> None:
         self.label = label
+        default_reasoning = "max" if label == "coordinator" else "high"
         self.settings = type(
             "DrySettings",
             (),
             {
                 "model": "dry-run",
-                "thinking_enabled": label == "coordinator",
-                "reasoning_effort": "max" if label == "coordinator" else None,
+                "thinking_enabled": True,
+                "reasoning_effort": default_reasoning,
                 "max_tokens": 1024,
                 "temperature": 0.0,
             },
         )()
 
-    def request_meta(self, *, max_tokens: int | None = None) -> dict[str, Any]:
+    def request_meta(self, *, max_tokens: int | None = None, reasoning_effort: str | None = None) -> dict[str, Any]:
+        default_reasoning = "max" if self.label == "coordinator" else "high"
         return {
             "model": "dry-run",
-            "thinking": {"type": "enabled" if self.label == "coordinator" else "disabled"},
-            "reasoning_effort": "max" if self.label == "coordinator" else None,
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": reasoning_effort or default_reasoning,
             "max_tokens": max_tokens or 1024,
             "temperature": 0.0,
         }
 
-    def chat(self, messages: list[dict[str, str]], *, max_tokens: int | None = None, temperature: float | None = None) -> ChatResult:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        reasoning_effort: str | None = None,
+    ) -> ChatResult:
         content = self._fake_content(messages)
         prompt_tokens = sum(len(message.get("content", "")) // 2 for message in messages)
         completion_tokens = len(content) // 2
@@ -82,22 +94,56 @@ class DryRunClient:
 
     def _fake_content(self, messages: list[dict[str, str]]) -> str:
         last = messages[-1]["content"]
-        if "请对整个议案讨论过程做最终总结" in last:
-            return "## 最终总结\n\n本次 dry-run 验证了模块化编排、多轮上下文拼接和报告保存逻辑。"
+        if "请对整个议案讨论过程做最终总结" in last or "请对整个开放式议题讨论过程做最终总结" in last:
+            return "## 最终总结\n\n本次 dry-run 验证了模块化编排、多轮上下文拼接、开放分歧记录和报告保存逻辑。"
+        if "请更新“更早 compact”的高质量滚动状态账本摘要" in last or "请更新“更早 compact”的高质量滚动开放讨论账本摘要" in last:
+            covered_match = re.search(r"覆盖第 1-(\d+) 个循环", last)
+            covered_until = covered_match.group(1) if covered_match else "1"
+            return (
+                f"# 更早 Compact 滚动开放讨论账本（覆盖第 1-{covered_until} 循环）\n\n"
+                "## A. 长期稳定事实、数字、概念边界与硬约束\n\n"
+                "- 继承：早期循环已形成稳定事实、概念争点和程序红线。\n\n"
+                "## C. 概念争点生命周期账本\n\n"
+                "| 争点/议题 | 当前状态 | 支持/反对/条件 | 关键演化历史 | 外部依赖 | 后续风险 |\n"
+                "|---|---|---|---|---|---|\n"
+                "| 自主/规训 | 继承 | 需继续讨论 | 已被纳入开放争点 | 外部审批待定 | 不能误写成共识 |\n\n"
+                "## D. 视角立场与政治/治理观点演化\n\n"
+                "- 继承：角色论证路径和自治、秩序、公平、专业责任之间的冲突应持续可见。"
+            )
         if "请只输出 JSON" in last and '"groups"' in last:
             return json.dumps(default_discussion_plan(), ensure_ascii=False, indent=2)
         if "现在进行第" in last and "你的人格卡" in last:
             prior_assistants = sum(1 for message in messages if message.get("role") == "assistant")
+            if "这是本子讨论组的第 4 轮总结" in last:
+                return (
+                    f"我代表本角色进行第 4 轮总结：本次调用前已有 {prior_assistants} 条 assistant 发言可见。"
+                    "我的最终立场是有条件推进；仍有疑惑包括执行边界、外部审批和弱势群体保护；"
+                    "下一轮 compact 应记录这些未决问题。"
+                )
             return (
                 f"我代表本角色发言：这是带有显式多轮上下文的 dry-run 发言。"
                 f"本次调用前已有 {prior_assistants} 条 assistant 发言可见；我会回应前序意见，"
-                "并要求把程序边界、责任主体、政治观点和可执行动作写入修订条款。"
+                "并要求把抽象争点、程序边界、政治观点和保留分歧写入后续 compact。"
             )
-        if "请生成第" in last and "阶段性报告" in last:
-            return "## 阶段性报告\n\n- 共识：需要保留硬约束并形成试点。\n- 分歧：责任和审批边界仍需细化。\n- 下一步：将争议条款改写为可表决文本。"
-        if "生成议案讨论 compact" in last:
-            return "## Compact\n\n- 当前事实：保留场景硬约束。\n- 论证路径：记录角色如何从事实、价值和风险推导结论。\n- 政治观点：标记自治、秩序、公平、专业责任之间的冲突。"
-        return "我代表本角色发言：支持继续推进，但要求把程序边界、政治观点和可执行动作写入修订条款。"
+        if "请生成第" in last and ("阶段性报告" in last or "阶段性思想报告" in last):
+            return "## 阶段性思想报告\n\n- 抽象争点：自主与规训仍在冲突。\n- 分歧：责任和审批边界仍需细化。\n- 下一步：保留强反对意见并引入新视角。"
+        if "生成议案讨论 compact" in last or "议案状态账本 compact" in last or "开放讨论状态账本 compact" in last:
+            return (
+                "# Compact 开放讨论状态账本（第 1 循环）\n\n"
+                "## 0. 本轮思想变化摘要\n\n"
+                "- 新增：保留场景硬约束、概念争点和强分歧。\n\n"
+                "## 1. 稳定事实、概念边界与硬约束\n\n"
+                "| 事项 | 状态 | 内容 | 依据来源 | 对后续讨论的影响 |\n"
+                "|---|---|---|---|---|\n"
+                "| 场景边界 | 继承 | 原始议题和权限边界必须持续可见 | 原始场景 | 后续讨论不能越权 |\n\n"
+                "## 4. 观点生态账本\n\n"
+                "| 视角/角色 | 当前立场 | 可见论证路径 | 政治/治理观点 | 最强反方是谁 | 相比上一轮变化 |\n"
+                "|---|---|---|---|---|---|\n"
+                "| A/B/C/D | 分歧保留 | 从概念、事实、价值和风险推导结论 | 自治、秩序、公平、专业责任冲突 | 彼此构成反方 | 新增 |\n\n"
+                "## 8. 防遗忘清单\n\n"
+                "- 继承/新增/修订/废弃/外部待定状态必须持续可见。"
+            )
+        return "我代表本角色发言：保留开放讨论，要求把抽象争点、程序边界、政治观点和保留分歧写入后续 compact。"
 
 
 class Simulator:
@@ -106,6 +152,7 @@ class Simulator:
         self.config = config
         self.options = options
         self.clients = self._build_clients()
+        self._io_lock = threading.Lock()
 
     def _build_clients(self) -> dict[str, Any]:
         if self.options.dry_run:
@@ -145,6 +192,8 @@ class Simulator:
             print("[monitor] disabled; read Markdown/JSONL artifacts in output directory", flush=True)
 
         compact_history: list[str] = []
+        compact_archive_summary = ""
+        compact_archive_summary_count = 0
         previous_reports: list[str] = []
         recent_discussion = ""
         timeline_items: list[str] = []
@@ -154,11 +203,22 @@ class Simulator:
         for loop_index in range(1, effective_loops + 1):
             loop_dir = run_dir / f"loop_{loop_index:02d}"
             loop_dir.mkdir(parents=True, exist_ok=True)
+            compact_archive_summary, compact_archive_summary_count = self._refresh_compact_archive_summary(
+                scenario=scenario,
+                compact_history=compact_history,
+                current_summary=compact_archive_summary,
+                summarized_count=compact_archive_summary_count,
+                loop_dir=loop_dir,
+                transcript_path=transcript_path,
+                errors_path=errors_path,
+                monitor=monitor,
+            )
 
             compact = self._run_compact(
                 scenario,
                 loop_index,
                 compact_history,
+                compact_archive_summary,
                 previous_reports,
                 recent_discussion,
                 loop_dir,
@@ -166,7 +226,11 @@ class Simulator:
                 errors_path,
                 monitor,
             )
-            background_context = compact_archive_context(scenario, compact_history)
+            background_context = compact_archive_context(
+                scenario,
+                compact_history,
+                earlier_summary=compact_archive_summary,
+            )
             write_text(loop_dir / "background_context.md", background_context)
             plan = self._run_planning(scenario, compact, background_context, loop_index, loop_dir, transcript_path, errors_path, monitor)
 
@@ -188,6 +252,7 @@ class Simulator:
                         loop_dir=loop_dir,
                         role_max_tokens=self.options.role_max_tokens,
                         preview_chars=self.options.preview_chars,
+                        include_summary_round=self.options.role_summary_round,
                         call_role=lambda client_key, call_type, messages, max_tokens, context_meta: self._call(
                             client_key=client_key,
                             call_type=call_type,
@@ -208,9 +273,10 @@ class Simulator:
             compact_history.append(compact)
             previous_reports.append(stage_report)
             recent_discussion = recent_context(discussion_text + "\n\n" + stage_report, self.options.recent_context_chars)
-            timeline_items.append(f"loop_{loop_index:02d}: {loop_dir / 'stage_report.md'}")
+            timeline_items.append(f"loop_{loop_index:02d}: loop_{loop_index:02d}/stage_report.md")
 
         final_summary = self._run_final_summary(scenario, previous_reports, timeline_items, run_dir, transcript_path, errors_path, monitor)
+        self._write_final_artifacts(run_dir, final_summary, timeline_items)
         print(f"[final] preview={final_summary[:self.options.preview_chars].replace(chr(10), ' ')}", flush=True)
 
         metrics = write_metrics(run_dir)
@@ -258,6 +324,7 @@ class Simulator:
         scenario: Scenario,
         loop_index: int,
         compact_history: list[str],
+        compact_archive_summary: str,
         previous_reports: list[str],
         recent_discussion: str,
         loop_dir: Path,
@@ -270,13 +337,68 @@ class Simulator:
         return self._call_and_save(
             client_key="coordinator",
             call_type="compact",
-            messages=compact_messages(scenario, loop_index, compact_history, previous_reports, recent_discussion),
+            messages=compact_messages(
+                scenario,
+                loop_index,
+                compact_history,
+                compact_archive_summary,
+                previous_reports,
+                recent_discussion,
+            ),
             output_path=loop_dir / "compact.md",
             transcript_path=transcript_path,
             errors_path=errors_path,
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
+            reasoning_effort="max",
         )
+
+    def _refresh_compact_archive_summary(
+        self,
+        *,
+        scenario: Scenario,
+        compact_history: list[str],
+        current_summary: str,
+        summarized_count: int,
+        loop_dir: Path,
+        transcript_path: Path,
+        errors_path: Path,
+        monitor: RunMonitor,
+    ) -> tuple[str, int]:
+        older, _recent = split_compact_history(compact_history, recent_count=DEFAULT_FULL_RECENT_COMPACTS)
+        target_count = len(older)
+        if target_count <= summarized_count:
+            return current_summary, summarized_count
+        newly_archived = [
+            (index, compact_history[index - 1])
+            for index in range(summarized_count + 1, target_count + 1)
+        ]
+        print(f"[archive] summarize_compacts=1-{target_count}", flush=True)
+        monitor.update("running", f"archive compact summary 1-{target_count}")
+        summary = self._call_and_save(
+            client_key="coordinator",
+            call_type="compact_archive_summary",
+            messages=[
+                {"role": "system", "content": COORDINATOR_SYSTEM},
+                {
+                    "role": "user",
+                    "content": compact_archive_summary_prompt(
+                        scenario,
+                        current_summary,
+                        newly_archived,
+                        target_count,
+                    ),
+                },
+            ],
+            output_path=loop_dir / "compact_archive_summary.md",
+            transcript_path=transcript_path,
+            errors_path=errors_path,
+            max_tokens=self.options.coordinator_max_tokens,
+            monitor=monitor,
+            reasoning_effort="max",
+        )
+        write_text(loop_dir.parent / "compact_archive_summary.md", summary)
+        return summary, target_count
 
     def _run_planning(
         self,
@@ -311,6 +433,7 @@ class Simulator:
             errors_path=errors_path,
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
+            reasoning_effort="max",
         )
         try:
             plan = load_discussion_plan(plan_text, max_groups=self.options.max_subcycles)
@@ -343,6 +466,7 @@ class Simulator:
             errors_path=errors_path,
             max_tokens=self.options.coordinator_max_tokens,
             monitor=monitor,
+            reasoning_effort="max",
         )
         try:
             return load_discussion_plan(repaired_text, max_groups=self.options.max_subcycles)
@@ -385,6 +509,7 @@ class Simulator:
             transcript_path=transcript_path,
             errors_path=errors_path,
             monitor=monitor,
+            reasoning_effort="max",
         )
         print(f"[loop {loop_index}] report_preview={stage_report[:self.options.preview_chars].replace(chr(10), ' ')}", flush=True)
         return stage_report
@@ -410,7 +535,62 @@ class Simulator:
             errors_path=errors_path,
             max_tokens=self.options.final_max_tokens,
             monitor=monitor,
+            reasoning_effort="max",
         )
+
+    def _write_final_artifacts(self, run_dir: Path, final_summary: str, timeline_items: list[str]) -> None:
+        final_dir = run_dir / "final"
+        final_dir.mkdir(parents=True, exist_ok=True)
+        write_text(final_dir / "final_summary.md", final_summary)
+
+        timeline = ["# Process Timeline", ""]
+        if timeline_items:
+            timeline.extend(f"- {item}" for item in timeline_items)
+        else:
+            timeline.append("- No loop stage reports were produced.")
+        write_text(final_dir / "process_timeline.md", "\n".join(timeline))
+
+        output_tree = self._render_output_tree(run_dir)
+        write_text(final_dir / "output_tree.md", output_tree)
+        write_text(
+            run_dir / "run_index.md",
+            "\n".join(
+                [
+                    "# Run Index",
+                    "",
+                    "This file summarizes the standard run artifact layout.",
+                    "",
+                    "## Key Files",
+                    "",
+                    "- `input.md`: original scenario snapshot.",
+                    "- `run_config.json`: effective loop/profile/runtime options.",
+                    "- `monitor.html` and `status.json`: browser-readable live monitor outputs when monitoring is enabled.",
+                    "- `transcript.jsonl`: request metadata, usage, and previews for every model call.",
+                    "- `loop_XX/compact.md`: inherited open discussion state ledger.",
+                    "- `loop_XX/discussion_plan.md`: per-loop perspective and group planning.",
+                    "- `loop_XX/subcycle_*/discussion_round_*.jsonl`: role discussion records.",
+                    "- `loop_XX/stage_report.md`: stage-level thought report.",
+                    "- `final/final_summary.md`: final summary stage output.",
+                    "- `final/process_timeline.md`: loop report timeline.",
+                    "- `final/output_tree.md`: complete artifact tree.",
+                    "",
+                    "## Artifact Tree",
+                    "",
+                    output_tree,
+                ]
+            ),
+        )
+
+    def _render_output_tree(self, run_dir: Path) -> str:
+        lines = ["# Output Tree", ""]
+        for path in sorted(run_dir.rglob("*")):
+            rel = path.relative_to(run_dir)
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            indent = "  " * (len(rel.parts) - 1)
+            suffix = "/" if path.is_dir() else ""
+            lines.append(f"{indent}- {rel.name}{suffix}")
+        return "\n".join(lines)
 
     def _call_and_save(
         self,
@@ -423,6 +603,7 @@ class Simulator:
         errors_path: Path,
         max_tokens: int | None = None,
         monitor: RunMonitor | None = None,
+        reasoning_effort: str | None = None,
     ) -> str:
         content, _result = self._call(
             client_key=client_key,
@@ -432,6 +613,7 @@ class Simulator:
             errors_path=errors_path,
             max_tokens=max_tokens,
             monitor=monitor,
+            reasoning_effort=reasoning_effort,
         )
         write_text(output_path, content)
         return content
@@ -447,53 +629,56 @@ class Simulator:
         max_tokens: int | None = None,
         monitor: RunMonitor | None = None,
         context_meta: dict[str, Any] | None = None,
+        reasoning_effort: str | None = None,
     ) -> tuple[str, ChatResult]:
         client = self.clients[client_key]
         started = time.time()
         try:
-            result = client.chat(messages, max_tokens=max_tokens)
+            result = client.chat(messages, max_tokens=max_tokens, reasoning_effort=reasoning_effort)
         except Exception as exc:
-            errors_path.parent.mkdir(parents=True, exist_ok=True)
-            with errors_path.open("a", encoding="utf-8") as fh:
+            with self._io_lock:
+                errors_path.parent.mkdir(parents=True, exist_ok=True)
+                with errors_path.open("a", encoding="utf-8") as fh:
+                    fh.write(
+                        json.dumps(
+                            {
+                                "call_type": call_type,
+                                "client_key": client_key,
+                                "started_at_unix": started,
+                                "error": str(exc),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+                if monitor is not None:
+                    monitor.record_error(f"error: {call_type}")
+            print(f"[error] call_type={call_type} client={client_key} error={exc}", flush=True)
+            raise
+
+        request_meta = client.request_meta(max_tokens=max_tokens, reasoning_effort=reasoning_effort) if hasattr(client, "request_meta") else {}
+        with self._io_lock:
+            transcript_path.parent.mkdir(parents=True, exist_ok=True)
+            with transcript_path.open("a", encoding="utf-8") as fh:
                 fh.write(
                     json.dumps(
                         {
                             "call_type": call_type,
                             "client_key": client_key,
-                            "started_at_unix": started,
-                            "error": str(exc),
+                            "request": request_meta,
+                            "messages": {
+                                "count": len(messages),
+                                "assistant_count": sum(1 for message in messages if message.get("role") == "assistant"),
+                                "user_count": sum(1 for message in messages if message.get("role") == "user"),
+                            },
+                            "context": context_meta or {},
+                            "usage": result_summary(result),
+                            "content_preview": result.content[:500],
                         },
                         ensure_ascii=False,
                     )
                     + "\n"
                 )
             if monitor is not None:
-                monitor.record_error(f"error: {call_type}")
-            print(f"[error] call_type={call_type} client={client_key} error={exc}", flush=True)
-            raise
-
-        transcript_path.parent.mkdir(parents=True, exist_ok=True)
-        request_meta = client.request_meta(max_tokens=max_tokens) if hasattr(client, "request_meta") else {}
-        with transcript_path.open("a", encoding="utf-8") as fh:
-            fh.write(
-                json.dumps(
-                    {
-                        "call_type": call_type,
-                        "client_key": client_key,
-                        "request": request_meta,
-                        "messages": {
-                            "count": len(messages),
-                            "assistant_count": sum(1 for message in messages if message.get("role") == "assistant"),
-                            "user_count": sum(1 for message in messages if message.get("role") == "user"),
-                        },
-                        "context": context_meta or {},
-                        "usage": result_summary(result),
-                        "content_preview": result.content[:500],
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-        if monitor is not None:
-            monitor.record_call(call_type, result.total_tokens)
+                monitor.record_call(call_type, result_summary(result))
         return result.content, result

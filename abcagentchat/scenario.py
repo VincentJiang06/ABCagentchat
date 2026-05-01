@@ -72,7 +72,7 @@ def load_scenario(path: Path, loops_override: int | None = None) -> Scenario:
     text = path.read_text(encoding="utf-8")
     meta, body = parse_frontmatter(text)
     title = str(meta.get("title") or path.stem)
-    loops = loops_override if loops_override is not None else int(meta.get("loops") or 1)
+    loops = loops_override if loops_override is not None else int(meta.get("loops") or 5)
     source_refs = meta.get("source_refs") or []
     if not isinstance(source_refs, list):
         source_refs = []
@@ -88,4 +88,3 @@ def load_scenario(path: Path, loops_override: int | None = None) -> Scenario:
         primary_tests=[str(item) for item in primary_tests],
         body=body.strip(),
     )
-

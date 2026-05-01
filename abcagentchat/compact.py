@@ -9,6 +9,7 @@ def compact_messages(
     scenario: Scenario,
     loop_index: int,
     compact_history: list[str],
+    compact_archive_summary: str,
     previous_reports: list[str],
     recent_discussion: str,
 ) -> list[dict[str, str]]:
@@ -19,7 +20,11 @@ def compact_messages(
             "content": compact_prompt(
                 scenario,
                 loop_index,
-                compact_archive_context(scenario, compact_history),
+                compact_archive_context(
+                    scenario,
+                    compact_history,
+                    earlier_summary=compact_archive_summary,
+                ),
                 previous_reports_context(previous_reports),
                 recent_discussion,
             ),

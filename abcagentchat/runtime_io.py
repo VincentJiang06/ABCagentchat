@@ -46,5 +46,7 @@ def result_summary(result: ChatResult) -> dict[str, Any]:
         "completion_tokens": result.completion_tokens,
         "reasoning_tokens": result.reasoning_tokens,
         "visible_answer_tokens_estimate": result.visible_answer_tokens_estimate,
+        "prompt_cache_hit_tokens": result.prompt_cache_hit_tokens,
+        "prompt_cache_miss_tokens": result.prompt_cache_miss_tokens,
         "total_tokens": result.total_tokens,
     }

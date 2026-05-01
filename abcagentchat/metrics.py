@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .background import DEFAULT_FULL_RECENT_COMPACTS
+
 
 EXPECTED_LOOP_FILES = [
     "background_context.md",
@@ -53,11 +55,15 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
     loops = int((run_config.get("scenario") or {}).get("loops") or 0)
     options = run_config.get("options") or {}
     rounds_per_subcycle = int(options.get("rounds_per_subcycle") or 1)
+    role_summary_round = bool(options.get("role_summary_round", True))
+    role_rounds_per_subcycle = rounds_per_subcycle + (1 if role_summary_round else 0)
     transcript = summarize_transcript(run_dir / "transcript.jsonl")
     expected_calls = 1 if loops else None
-    optional_repair_calls = int((transcript.get("by_type") or {}).get("planning_repair") or 0)
+    by_type = transcript.get("by_type") or {}
+    optional_repair_calls = int(by_type.get("planning_repair") or 0)
+    expected_compact_archive_summary_calls = max(0, loops - DEFAULT_FULL_RECENT_COMPACTS - 1)
     if expected_calls is not None:
-        expected_calls += optional_repair_calls
+        expected_calls += optional_repair_calls + expected_compact_archive_summary_calls
 
     missing_files: list[str] = []
     if not (run_dir / "input.md").exists():
@@ -81,7 +87,7 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
         if plan_path.exists():
             groups = (json.loads(plan_path.read_text(encoding="utf-8")).get("groups") or [])
         if expected_calls is not None:
-            expected_calls += 3 + len(groups) * rounds_per_subcycle * 4
+            expected_calls += 3 + len(groups) * role_rounds_per_subcycle * 4
         for subcycle_index, group in enumerate(groups, start=1):
             group_id = str(group.get("group_id") or subcycle_index)
             subcycle_dirs = sorted(loop_dir.glob(f"subcycle_{subcycle_index:02d}_*"))
@@ -89,7 +95,7 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
                 missing_files.append(f"loop_{index:02d}/subcycle_{subcycle_index:02d}_{group_id}")
                 continue
             subcycle_dir = subcycle_dirs[0]
-            for round_index in range(1, rounds_per_subcycle + 1):
+            for round_index in range(1, role_rounds_per_subcycle + 1):
                 round_path = subcycle_dir / f"discussion_round_{round_index:02d}.jsonl"
                 if not round_path.exists():
                     missing_files.append(str(round_path.relative_to(run_dir)))
