@@ -15,6 +15,14 @@ from .background import DEFAULT_FULL_RECENT_COMPACTS, compact_archive_context, r
 from .compact import compact_messages
 from .config import COORDINATOR_MAX_TOKENS, ROLE_MAX_TOKENS, AppConfig
 from .gc import prune_old_runs
+from .layout import (
+    compact_planning_loop_dir,
+    compact_planning_root,
+    final_summary_root,
+    framework_root,
+    process_loop_dir,
+    process_root,
+)
 from .metrics import write_metrics
 from .monitor import NullMonitor, RunMonitor
 from .planning import default_discussion_plan, load_discussion_plan, render_discussion_plan
@@ -32,6 +40,8 @@ TEMP_STAGE_REPORT = 0.0
 TEMP_FINAL_SUMMARY = 0.5
 DEFAULT_STAGE_MAX_TOKENS = COORDINATOR_MAX_TOKENS
 DEFAULT_FINAL_MAX_TOKENS = COORDINATOR_MAX_TOKENS
+DEFAULT_PLANNING_MAX_TOKENS = 8192
+DEFAULT_PLANNING_CONTEXT_CHARS = 16000
 FINAL_SECTION_SPECS = [
     ("discussion_result", "对这个问题讨论出来的结果", "01_discussion_result.md"),
     ("process_analysis", "对整个讨论流程的客观分析", "02_process_analysis.md"),
@@ -47,12 +57,14 @@ class RunOptions:
     dry_run: bool = False
     timeout: int = 600
     recent_context_chars: int = 32000
+    planning_context_chars: int = DEFAULT_PLANNING_CONTEXT_CHARS
     preview_chars: int = 260
-    max_loops: int = 5
+    max_loops: int = 3
     max_subcycles: int = 3
     rounds_per_subcycle: int = 3
-    role_summary_round: bool = True
+    role_summary_round: bool = False
     coordinator_max_tokens: int | None = None
+    planning_max_tokens: int | None = DEFAULT_PLANNING_MAX_TOKENS
     role_max_tokens: int | None = None
     stage_max_tokens: int | None = None
     final_max_tokens: int | None = None
@@ -213,7 +225,14 @@ class Simulator:
     def run(self, scenario: Scenario) -> Path:
         run_dir = self.make_run_dir(scenario)
         effective_loops = min(scenario.loops, self.options.max_loops)
-        shutil.copy2(scenario.path, run_dir / "input.md")
+        for section_dir in (
+            process_root(run_dir),
+            compact_planning_root(run_dir),
+            final_summary_root(run_dir),
+            framework_root(run_dir),
+        ):
+            section_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(scenario.path, framework_root(run_dir) / "input.md")
         self._write_run_config(run_dir, scenario, effective_loops)
         monitor = RunMonitor(run_dir, scenario_title=scenario.title, total_loops=effective_loops) if self.options.enable_monitor else NullMonitor()
 
@@ -232,18 +251,20 @@ class Simulator:
         previous_reports: list[str] = []
         recent_discussion = ""
         timeline_items: list[str] = []
-        errors_path = run_dir / "errors.jsonl"
-        transcript_path = run_dir / "transcript.jsonl"
+        errors_path = process_root(run_dir) / "errors.jsonl"
+        transcript_path = process_root(run_dir) / "transcript.jsonl"
 
         for loop_index in range(1, effective_loops + 1):
-            loop_dir = run_dir / f"loop_{loop_index:02d}"
-            loop_dir.mkdir(parents=True, exist_ok=True)
+            loop_process_dir = process_loop_dir(run_dir, loop_index)
+            loop_compact_dir = compact_planning_loop_dir(run_dir, loop_index)
+            loop_process_dir.mkdir(parents=True, exist_ok=True)
+            loop_compact_dir.mkdir(parents=True, exist_ok=True)
             compact_archive_summary, compact_archive_summary_count = self._refresh_compact_archive_summary(
                 scenario=scenario,
                 compact_history=compact_history,
                 current_summary=compact_archive_summary,
                 summarized_count=compact_archive_summary_count,
-                loop_dir=loop_dir,
+                loop_dir=loop_compact_dir,
                 transcript_path=transcript_path,
                 errors_path=errors_path,
                 monitor=monitor,
@@ -256,7 +277,7 @@ class Simulator:
                 compact_archive_summary,
                 previous_reports,
                 recent_discussion,
-                loop_dir,
+                loop_compact_dir,
                 transcript_path,
                 errors_path,
                 monitor,
@@ -266,8 +287,8 @@ class Simulator:
                 compact_history,
                 earlier_summary=compact_archive_summary,
             )
-            write_text(loop_dir / "background_context.md", background_context)
-            plan = self._run_planning(scenario, compact, background_context, loop_index, loop_dir, transcript_path, errors_path, monitor)
+            write_text(loop_compact_dir / "background_context.md", background_context)
+            plan = self._run_planning(scenario, compact, background_context, loop_index, loop_compact_dir, transcript_path, errors_path, monitor)
 
             loop_discussion_parts: list[str] = []
             for subcycle_index, group in enumerate(plan["groups"], start=1):
@@ -284,7 +305,7 @@ class Simulator:
                         rounds_per_subcycle=self.options.rounds_per_subcycle,
                         recent_history=recent_context(recent_discussion, self.options.recent_context_chars),
                         background_context=background_context,
-                        loop_dir=loop_dir,
+                        loop_dir=loop_process_dir,
                         role_max_tokens=self.options.role_max_tokens,
                         preview_chars=self.options.preview_chars,
                         include_summary_round=self.options.role_summary_round,
@@ -303,12 +324,12 @@ class Simulator:
 
             discussion_text = "\n\n".join(loop_discussion_parts)
             stage_report = self._run_stage_report(
-                scenario, loop_index, compact, discussion_text, loop_dir, transcript_path, errors_path, monitor
+                scenario, loop_index, compact, discussion_text, loop_process_dir, transcript_path, errors_path, monitor
             )
             compact_history.append(compact)
             previous_reports.append(stage_report)
             recent_discussion = recent_context(discussion_text + "\n\n" + stage_report, self.options.recent_context_chars)
-            timeline_items.append(f"loop_{loop_index:02d}: loop_{loop_index:02d}/stage_report.md")
+            timeline_items.append(f"loop_{loop_index:02d}: process/loop_{loop_index:02d}/stage_report.md")
 
         final_summary = self._run_final_summary(scenario, previous_reports, timeline_items, run_dir, transcript_path, errors_path, monitor)
         self._write_final_artifacts(run_dir, final_summary, timeline_items)
@@ -335,7 +356,7 @@ class Simulator:
 
     def _write_run_config(self, run_dir: Path, scenario: Scenario, effective_loops: int) -> None:
         write_json(
-            run_dir / "run_config.json",
+            framework_root(run_dir) / "run_config.json",
             {
                 "scenario": {
                     "path": str(scenario.path),
@@ -459,16 +480,16 @@ class Simulator:
                     "role": "user",
                     "content": deliberation_plan_prompt(
                         scenario,
-                        compact,
+                        self._trim_planning_text(compact, "compact"),
                         max_groups=self.options.max_subcycles,
-                        background_context=background_context,
+                        background_context=self._trim_planning_text(background_context, "background"),
                     ),
                 },
             ],
             output_path=loop_dir / "discussion_plan.raw.json",
             transcript_path=transcript_path,
             errors_path=errors_path,
-            max_tokens=self.options.coordinator_max_tokens,
+            max_tokens=self.options.planning_max_tokens or DEFAULT_PLANNING_MAX_TOKENS,
             monitor=monitor,
             reasoning_effort="max",
             temperature=TEMP_PLANNING,
@@ -502,7 +523,7 @@ class Simulator:
             output_path=loop_dir / "discussion_plan.repaired.json",
             transcript_path=transcript_path,
             errors_path=errors_path,
-            max_tokens=self.options.coordinator_max_tokens,
+            max_tokens=self.options.planning_max_tokens or DEFAULT_PLANNING_MAX_TOKENS,
             monitor=monitor,
             reasoning_effort="max",
             temperature=TEMP_PLANNING_REPAIR,
@@ -525,6 +546,20 @@ class Simulator:
                     + "\n"
                 )
             return default_discussion_plan()
+
+    def _trim_planning_text(self, text: str, label: str) -> str:
+        max_chars = max(0, int(self.options.planning_context_chars or 0))
+        if not max_chars or len(text) <= max_chars:
+            return text
+        marker = (
+            f"\n\n[... {label} 中段省略 {len(text) - max_chars} 字符；"
+            "planning 只保留开头约束与结尾最近状态，完整 compact 仍保存在文件中 ...]\n\n"
+        )
+        head_chars = max(2000, int(max_chars * 0.42))
+        tail_chars = max(2000, max_chars - head_chars - len(marker))
+        if head_chars + tail_chars + len(marker) >= len(text):
+            return text
+        return text[:head_chars].rstrip() + marker + text[-tail_chars:].lstrip()
 
     def _run_stage_report(
         self,
@@ -570,7 +605,7 @@ class Simulator:
             client_key="coordinator",
             call_type="final_summary",
             messages=final_summary_messages(scenario, previous_reports, "\n".join(timeline_items)),
-            output_path=run_dir / "final_summary.md",
+            output_path=final_summary_root(run_dir) / "final_summary.md",
             transcript_path=transcript_path,
             errors_path=errors_path,
             max_tokens=self.options.final_max_tokens or DEFAULT_FINAL_MAX_TOKENS,
@@ -580,7 +615,7 @@ class Simulator:
         )
 
     def _write_final_artifacts(self, run_dir: Path, final_summary: str, timeline_items: list[str]) -> None:
-        final_dir = run_dir / "final"
+        final_dir = final_summary_root(run_dir)
         final_dir.mkdir(parents=True, exist_ok=True)
         write_text(final_dir / "final_summary.md", final_summary)
         write_text(final_dir / "00_full_final_summary.md", final_summary)
@@ -633,31 +668,38 @@ class Simulator:
         output_tree = self._render_output_tree(run_dir)
         write_text(final_dir / "output_tree.md", output_tree)
         write_text(
-            run_dir / "run_index.md",
+            framework_root(run_dir) / "run_index.md",
             "\n".join(
                 [
                     "# Run Index",
                     "",
-                    "This file summarizes the standard run artifact layout.",
+                    "This file summarizes the categorized run artifact layout.",
+                    "",
+                    "## Top-Level Sections",
+                    "",
+                    "- `process/`: raw execution evidence, role discussion rounds, stage reports, transcript, errors, audit, and metrics.",
+                    "- `compact and planning/`: compact ledgers, compact archive summaries, background contexts, and planning JSON/Markdown.",
+                    "- `final summary/`: final summary output and reader-facing split documents.",
+                    "- `framework/`: original scenario snapshot, effective runtime config, and artifact index.",
                     "",
                     "## Key Files",
                     "",
-                    "- `input.md`: original scenario snapshot.",
-                    "- `run_config.json`: effective loop/profile/runtime options.",
+                    "- `framework/input.md`: original scenario snapshot.",
+                    "- `framework/run_config.json`: effective loop/profile/runtime options.",
                     "- `monitor.html` and `status.json`: browser-readable live monitor outputs when monitoring is enabled.",
-                    "- `transcript.jsonl`: request metadata, usage, and previews for every model call.",
-                    "- `loop_XX/compact.md`: inherited open discussion state ledger.",
-                    "- `loop_XX/discussion_plan.md`: per-loop perspective and group planning.",
-                    "- `loop_XX/subcycle_*/discussion_round_*.jsonl`: role discussion records.",
-                    "- `loop_XX/stage_report.md`: stage-level thought report.",
-                    "- `final/final_summary.md` and `final/00_full_final_summary.md`: full final summary stage output.",
-                    "- `final/01_discussion_result.md`: discussion result landscape and conditional recommendations.",
-                    "- `final/02_process_analysis.md`: objective workflow/process analysis.",
-                    "- `final/03_synthesized_document.md`: reader-facing synthesized document.",
-                    "- `final/04_evidence_and_next_steps.md`: evidence gaps and follow-up testing recommendations.",
-                    "- `final/manifest.json`: final package file manifest.",
-                    "- `final/process_timeline.md`: loop report timeline.",
-                    "- `final/output_tree.md`: complete artifact tree.",
+                    "- `process/transcript.jsonl`: request metadata, usage, and previews for every model call.",
+                    "- `compact and planning/loop_XX/compact.md`: inherited open discussion state ledger.",
+                    "- `compact and planning/loop_XX/discussion_plan.md`: per-loop perspective and group planning.",
+                    "- `process/loop_XX/subcycle_*/discussion_round_*.jsonl`: role discussion records.",
+                    "- `process/loop_XX/stage_report.md`: stage-level thought report.",
+                    "- `final summary/final_summary.md` and `final summary/00_full_final_summary.md`: full final summary stage output.",
+                    "- `final summary/01_discussion_result.md`: discussion result landscape and conditional recommendations.",
+                    "- `final summary/02_process_analysis.md`: objective workflow/process analysis.",
+                    "- `final summary/03_synthesized_document.md`: reader-facing synthesized document.",
+                    "- `final summary/04_evidence_and_next_steps.md`: evidence gaps and follow-up testing recommendations.",
+                    "- `final summary/manifest.json`: final package file manifest.",
+                    "- `final summary/process_timeline.md`: loop report timeline.",
+                    "- `final summary/output_tree.md`: complete artifact tree.",
                     "",
                     "## Artifact Tree",
                     "",

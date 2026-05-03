@@ -4,25 +4,25 @@
 
 ## 1. Scenario / Background
 
-目标：确认原始议题和历史 compact 能稳定注入后续循环。标准问题锁定为 5 个循环，最近四个 compact 会以全文进入最后一轮背景；超过 5 循环的 archive 压缩逻辑只作为单元测试覆盖。
+目标：确认原始议题和历史 compact 能稳定注入后续循环。标准问题锁定为 3 个循环；超过近期窗口的 archive 压缩逻辑只作为长程测试覆盖。
 
 检查命令：
 
 ```bash
-python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 5 --dry-run --out runs/debug-background --keep-runs 0
+python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 3 --dry-run --out runs/debug-background --keep-runs 0
 ```
 
 检查文件：
 
-- `runs/debug-background/loop_01/background_context.md` 应包含原始议题，历史 compact 为空。
-- `runs/debug-background/loop_02/background_context.md` 应包含原始议题和“第 1 个循环 compact”。
-- `runs/debug-background/loop_05/background_context.md` 应完整保留第 1-4 个循环 compact。
-- 标准 5 循环通常不会生成 `compact_archive_summary.md`；超过 5 循环时才会触发更早 compact 的滚动摘要。
+- `runs/debug-background/compact and planning/loop_01/background_context.md` 应包含原始议题，历史 compact 为空。
+- `runs/debug-background/compact and planning/loop_02/background_context.md` 应包含原始议题和“第 1 个循环 compact”。
+- `runs/debug-background/compact and planning/loop_03/background_context.md` 应保留前序 compact。
+- 标准 3 循环通常不会生成 `compact and planning/compact_archive_summary.md`；长程测试超过近期窗口时才会触发更早 compact 的滚动摘要。
 
 通过标准：
 
 - 原始议题没有丢失。
-- 历史 compact 最近 4 个保留全文；超过标准 5 循环时，更早 compact 才以递减摘录进入背景，并由高质量滚动开放讨论账本统一兜底。
+- 历史 compact 最近 4 个保留全文；长程运行超过近期窗口时，更早 compact 才以递减摘录进入背景，并由高质量滚动开放讨论账本统一兜底。
 - 没有把三轮角色全文无限塞入跨循环背景，只保留 compact 和近期摘要。
 
 ## 2. Compact
@@ -31,7 +31,7 @@ python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 
 
 检查文件：
 
-- `loop_XX/compact.md`
+- `compact and planning/loop_XX/compact.md`
 
 通过标准：
 
@@ -47,10 +47,10 @@ python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 
 
 检查文件：
 
-- `loop_XX/discussion_plan.raw.json`
-- `loop_XX/discussion_plan.json`
-- `loop_XX/discussion_plan.md`
-- 如 JSON 修复触发，检查 `discussion_plan.repaired.json` 和 `warnings.jsonl`。
+- `compact and planning/loop_XX/discussion_plan.raw.json`
+- `compact and planning/loop_XX/discussion_plan.json`
+- `compact and planning/loop_XX/discussion_plan.md`
+- 如 JSON 修复触发，检查 `compact and planning/loop_XX/discussion_plan.repaired.json` 和 `process/warnings.jsonl`。
 
 通过标准：
 
@@ -64,22 +64,20 @@ python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 
 
 检查文件：
 
-- `loop_XX/subcycle_YY_*/discussion_round_01.jsonl`
-- `loop_XX/subcycle_YY_*/discussion_round_02.jsonl`
-- `loop_XX/subcycle_YY_*/discussion_round_03.jsonl`
-- `loop_XX/subcycle_YY_*/discussion_round_04.jsonl`
-- `transcript.jsonl`
+- `process/loop_XX/subcycle_YY_*/discussion_round_01.jsonl`
+- `process/loop_XX/subcycle_YY_*/discussion_round_02.jsonl`
+- `process/loop_XX/subcycle_YY_*/discussion_round_03.jsonl`
+- `process/transcript.jsonl`
 
 通过标准：
 
 - 每个 discussion round 有 4 行。
 - 每个 subcycle 的完整背景只应出现在 role request 的 system prompt 中；后续 user prompt 只包含角色人格和本次任务，不再重复写入完整背景、recent history 或当前轮摘要。
-- `transcript.jsonl` 中同一 subcycle 的 role assistant_count 应按轮同步递增：
+- `process/transcript.jsonl` 中同一 subcycle 的 role assistant_count 应按轮同步递增：
   - 第 1 轮 A/B/C/D: `0,0,0,0`
   - 第 2 轮 A/B/C/D: `4,4,4,4`
   - 第 3 轮 A/B/C/D: `8,8,8,8`
-  - 第 4 轮总结 A/B/C/D: `12,12,12,12`
-- 第 4 轮应要求四个角色总结自己的最终观点和仍有疑惑，而不是继续开启新争论。
+- 第 3 轮应进行更强烈的交叉质询和压力测试，而不是总结轮。
 - role request 中 `model` 为 `deepseek-v4-pro`，`thinking.type` 为 `disabled`，且不带 `reasoning_effort`。
 
 ## 5. Reports
@@ -88,8 +86,8 @@ python3 run_simulation.py scenarios/10_university_evening_self_study.md --loops 
 
 检查文件：
 
-- `loop_XX/stage_report.md`
-- `final_summary.md`
+- `process/loop_XX/stage_report.md`
+- `final summary/final_summary.md`
 
 通过标准：
 
@@ -108,7 +106,7 @@ python3 audit_run.py runs/debug-background --write
 
 通过标准：
 
-- `metrics.json` 中 `passed=true`。
+- `process/metrics.json` 中 `passed=true`。
 - `call_count_matches=true`。
 - `all_rounds_have_four_roles=true`。
 - `has_no_length_stops=true`。
@@ -136,7 +134,7 @@ python3 run_simulation.py scenarios/10_university_evening_self_study.md \
 
 通过标准：
 
-- `metrics.json` 通过。
-- `transcript.jsonl` 显示 coordinator thinking enabled/max。
-- `transcript.jsonl` 显示 role model 为 `deepseek-v4-pro`，thinking disabled，且不带 reasoning_effort。
-- 三轮讨论加第 4 轮总结的 role assistant_count 按 `0/4/8/12` 同步递增。
+- `process/metrics.json` 通过。
+- `process/transcript.jsonl` 显示 coordinator thinking enabled/max。
+- `process/transcript.jsonl` 显示 role model 为 `deepseek-v4-pro`，thinking disabled，且不带 reasoning_effort。
+- 三轮讨论的 role assistant_count 按 `0/4/8` 同步递增。

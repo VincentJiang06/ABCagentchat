@@ -12,6 +12,7 @@ MONITOR_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>ABC Agent Chat Monitor</title>
   <style>
     :root {
@@ -96,6 +97,18 @@ MONITOR_HTML = """<!doctype html>
       font: 900 20px/1 "Avenir Next", sans-serif;
     }
     .theme-toggle:hover { transform: translateY(-1px); }
+    .stop-button {
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--danger) 14%, var(--panel));
+      color: var(--danger);
+      cursor: pointer;
+      font: 900 12px/1 var(--mono);
+      padding: 10px 12px;
+      text-transform: uppercase;
+    }
+    .stop-button:hover { background: var(--danger); color: var(--bg); }
+    .stop-button[hidden] { display: none; }
     .grid { display: grid; grid-template-columns: repeat(7, minmax(128px, 1fr)); gap: 10px; margin: 18px 0; }
     .tile, section {
       background: var(--panel);
@@ -119,9 +132,11 @@ MONITOR_HTML = """<!doctype html>
     .batch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
     .case-card { border: 1px solid var(--line); border-top: 4px solid var(--line-strong); border-radius: 8px; background: var(--panel-strong); padding: 12px; min-height: 150px; }
     .case-card.done { border-top-color: var(--good); }
+    .case-card.warning { border-top-color: var(--warn); }
     .case-card.running { border-top-color: var(--accent); }
     .case-card.error { border-top-color: var(--danger); }
     .case-card.pending { border-top-color: var(--warn); }
+    .case-card.stopped { border-top-color: var(--warn); opacity: .82; }
     .case-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
     .case-index { color: var(--muted); font: 900 12px/1 var(--mono); letter-spacing: .06em; }
     .case-title { margin-top: 6px; font-size: 16px; font-weight: 900; line-height: 1.25; color: var(--ink); }
@@ -158,6 +173,7 @@ MONITOR_HTML = """<!doctype html>
           <span id="themeIcon" aria-hidden="true">☾</span>
           <span class="sr-only">切换主题</span>
         </button>
+        <button class="stop-button" id="stopButton" type="button" hidden>Stop All</button>
         <div class="muted" id="updated">waiting</div>
       </div>
     </header>
@@ -230,6 +246,22 @@ MONITOR_HTML = """<!doctype html>
       const button = event.target && event.target.closest ? event.target.closest('#themeToggle') : null;
       if (!button) return;
       applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+    document.addEventListener('click', async event => {
+      const button = event.target && event.target.closest ? event.target.closest('#stopButton') : null;
+      if (!button) return;
+      button.disabled = true;
+      button.textContent = 'Stopping...';
+      try {
+        const res = await fetch('/api/stop-batch', { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        button.textContent = 'Stop Requested';
+      } catch (err) {
+        button.textContent = 'CLI Stop Required';
+        document.getElementById('pricingNote').textContent = `当前服务器不支持停止 API；请运行 python3 stop_batch.py。错误：${String(err && err.message || err)}`;
+      } finally {
+        setTimeout(refresh, 500);
+      }
     });
     const DEFAULT_BATCH_CASES = [
       { index: 1, slug: '01_ebike_charging_governance', title: '电动自行车社区充电收费与安全治理议案', scenario: 'scenarios/01_ebike_charging_governance.md' },
@@ -334,22 +366,18 @@ MONITOR_HTML = """<!doctype html>
     function previewCandidates(s, rows, phase) {
       const loop = String(s.current_loop || 1).padStart(2, '0');
       const base = `loop_${loop}`;
+      const compactBase = `compact and planning/${base}`;
+      const processBase = `process/${base}`;
       const candidates = [
         { label: '最新模型输出', path: '__latest_model_outputs__' },
-        { label: 'Compact', path: `${base}/compact.md` },
-        { label: 'Planning', path: `${base}/discussion_plan.md` },
-        { label: 'Stage Report', path: `${base}/stage_report.md` },
-        { label: 'Final', path: 'final/final_summary.md' },
-        { label: 'Run Index', path: 'run_index.md' }
+        { label: 'Compact', path: `${compactBase}/compact.md` },
+        { label: 'Planning', path: `${compactBase}/discussion_plan.md` },
+        { label: 'Stage Report', path: `${processBase}/stage_report.md` },
+        { label: 'Final', path: 'final summary/final_summary.md' },
+        { label: 'Run Index', path: 'framework/run_index.md' }
       ];
       const lowerPhase = String(phase.desc.name || '').toLowerCase();
-      if (!selectedPreviewPath) {
-        if (lowerPhase.includes('planning')) selectedPreviewPath = `${base}/discussion_plan.md`;
-        else if (lowerPhase.includes('stage')) selectedPreviewPath = `${base}/stage_report.md`;
-        else if (lowerPhase.includes('final')) selectedPreviewPath = 'final/final_summary.md';
-        else if (lowerPhase.includes('compact')) selectedPreviewPath = `${base}/compact.md`;
-        else selectedPreviewPath = '__latest_model_outputs__';
-      }
+      if (!selectedPreviewPath) selectedPreviewPath = lowerPhase.includes('final') ? 'final summary/final_summary.md' : '__latest_model_outputs__';
       return candidates;
     }
     async function updatePreview(s, rows, phase) {
@@ -373,7 +401,7 @@ MONITOR_HTML = """<!doctype html>
         content = await fetchPreview(selectedPreviewPath);
       }
       document.getElementById('previewMeta').textContent = selectedPreviewPath === '__latest_model_outputs__'
-        ? '最近 8 次模型输出预览，来自 transcript.jsonl 的 content_preview'
+        ? '最近 8 次模型输出预览，来自 process/transcript.jsonl 的 content_preview'
         : `文件：${selectedPreviewPath}`;
       document.getElementById('previewBox').textContent = truncatePreview(content || '当前文件还没有生成。');
     }
@@ -423,7 +451,16 @@ MONITOR_HTML = """<!doctype html>
         call_count: item.call_count,
         total_tokens: item.total_tokens,
         current_loop: item.current_loop,
-        total_loops: item.total_loops
+        total_loops: item.total_loops,
+        pid: item.pid,
+        pgid: item.pgid,
+        updated_at: item.updated_at,
+        current_step: item.current_step || '',
+        return_code: item.return_code,
+        audit_return_code: item.audit_return_code,
+        audit_passed: item.audit_passed,
+        audit_warning_count: item.audit_warning_count,
+        audit_warnings: item.audit_warnings
       })).sort((a, b) => a.index - b.index);
     }
     function stripToRelativeRunPath(path) {
@@ -433,38 +470,91 @@ MONITOR_HTML = """<!doctype html>
       if (markerIndex >= 0) return value.slice(markerIndex + marker.length).replace(/^\\/+/, '');
       return value.replace(/^\\.\\//, '').replace(/^\\/+/, '');
     }
+    function nightlyRelativePageParts() {
+      const marker = '/runs/nightly-all-tests/';
+      const markerIndex = location.pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+      const rel = location.pathname.slice(markerIndex + marker.length).replace(/^\\/+/, '');
+      return rel.split('/').filter(Boolean);
+    }
+    function nightlyPageDepth() {
+      const parts = nightlyRelativePageParts();
+      if (!parts || !parts.length) return 0;
+      const file = parts[parts.length - 1] || '';
+      return file.endsWith('.html') ? Math.max(0, parts.length - 1) : parts.length;
+    }
+    function toCurrentPagePathFromNightlyRoot(relPath) {
+      const clean = String(relPath || '').replace(/^\\/+/, '');
+      const parts = nightlyRelativePageParts();
+      if (!parts) return clean;
+      return '../'.repeat(nightlyPageDepth()) + clean;
+    }
+    function batchStatusPathForCurrentPage() {
+      const parts = nightlyRelativePageParts();
+      if (!parts) return '';
+      if (parts.length === 1 && parts[0] === 'monitor.html') return toCurrentPagePathFromNightlyRoot('batch_status.json');
+      if (parts.length === 2 && parts[1] === 'monitor.html' && /^batch-/i.test(parts[0])) {
+        return toCurrentPagePathFromNightlyRoot('batch_status.json');
+      }
+      return '';
+    }
     function caseStatusCandidates(item) {
       const candidates = [];
-      if (item.status_path) candidates.push(stripToRelativeRunPath(item.status_path));
-      if (item.run_dir) candidates.push(stripToRelativeRunPath(item.run_dir).replace(/\\/$/, '') + '/status.json');
+      if (item.status_path) candidates.push(toCurrentPagePathFromNightlyRoot(stripToRelativeRunPath(item.status_path)));
+      if (item.run_dir) candidates.push(toCurrentPagePathFromNightlyRoot(stripToRelativeRunPath(item.run_dir).replace(/\\/$/, '') + '/status.json'));
       return Array.from(new Set(candidates.filter(Boolean)));
     }
     function caseMonitorHref(item) {
-      if (item.monitor_url) return item.monitor_url;
-      if (item.run_dir) return stripToRelativeRunPath(item.run_dir).replace(/\\/$/, '') + '/monitor.html';
+      if (item.monitor_url) {
+        const value = String(item.monitor_url);
+        if (/^(https?:)?\\//.test(value)) return value;
+        return toCurrentPagePathFromNightlyRoot(stripToRelativeRunPath(value));
+      }
+      if (item.run_dir) return toCurrentPagePathFromNightlyRoot(stripToRelativeRunPath(item.run_dir).replace(/\\/$/, '') + '/monitor.html');
       if (item.slug) return `${item.slug}/monitor.html`;
       return '';
     }
     function statusBucket(status) {
       const value = String(status || '').toLowerCase();
       if (value === 'done' || value === 'completed' || value === 'passed') return 'done';
+      if (value === 'completed_with_warnings' || value === 'warning' || value === 'warnings') return 'warning';
       if (value === 'running' || value === 'starting') return 'running';
+      if (value === 'stopped' || value === 'stopping') return 'stopped';
       if (value === 'error' || value === 'failed' || value === 'stalled') return 'error';
       return 'pending';
     }
-    async function enrichBatchCase(item, rootStatus) {
+    function normalizeAuditStatus(item, status) {
+      const value = String(status || '').toLowerCase();
+      const runOk = Number(item.return_code) === 0;
+      const auditFailed = Number(item.audit_return_code) !== 0 || item.audit_passed === false;
+      const auditStep = /audit failed/i.test(String(item.current_step || ''));
+      if (value === 'failed' && runOk && auditFailed && auditStep) return 'completed_with_warnings';
+      return status;
+    }
+    function batchStatusForDisplay(batch, counts) {
+      const status = batch && batch.status ? String(batch.status).toLowerCase() : '';
+      if (status === 'failed' && counts.error === 0 && counts.completed === counts.total && counts.warning > 0) return 'completed_with_warnings';
+      if (batch && batch.status) return normalizeAuditStatus(batch, batch.status);
+      if (counts.error) return 'error';
+      if (counts.running) return 'running';
+      if (counts.stopped) return 'stopped';
+      if (counts.completed === counts.total) return counts.warning ? 'completed_with_warnings' : 'done';
+      return 'starting';
+    }
+    async function enrichBatchCase(item, rootStatus, allowChildFetch) {
       let child = null;
       if (rootStatus && rootStatus.scenario_title && item.title === rootStatus.scenario_title) {
         child = rootStatus;
       }
-      if (!child) {
+      if (!child && allowChildFetch) {
         for (const candidate of caseStatusCandidates(item)) {
           child = await fetchJsonMaybe(candidate);
           if (child) break;
         }
       }
       const merged = { ...item, ...(child || {}) };
-      const status = merged.status || (child ? 'running' : item.status) || 'pending';
+      const rawStatus = merged.status || (child ? 'running' : item.status) || 'pending';
+      const status = normalizeAuditStatus(merged, rawStatus);
       return {
         ...item,
         child,
@@ -477,37 +567,55 @@ MONITOR_HTML = """<!doctype html>
         total_tokens: Number(merged.total_tokens || item.total_tokens || 0),
         error_count: Number(merged.error_count || item.error_count || 0),
         current_step: merged.current_step || item.current_step || '',
+        audit_warning_count: Number(merged.audit_warning_count || item.audit_warning_count || 0),
+        audit_warnings: merged.audit_warnings || item.audit_warnings || [],
+        pid: merged.pid || item.pid || '',
+        pgid: merged.pgid || item.pgid || '',
+        updated_at: merged.updated_at || item.updated_at || '',
         monitor_href: caseMonitorHref(item)
       };
     }
     async function updateBatchSection(rootStatus) {
-      const batch = await fetchJsonMaybe('batch_status.json');
-      const isBatchPath = /nightly-all-tests|all-tests|batch/i.test(location.pathname);
+      const batchStatusPath = batchStatusPathForCurrentPage();
+      const isBatchPath = Boolean(batchStatusPath);
+      const batch = batchStatusPath ? await fetchJsonMaybe(batchStatusPath) : null;
       let cases = normalizeBatchCases(batch);
       if (!cases.length && isBatchPath) cases = DEFAULT_BATCH_CASES;
       const section = document.getElementById('batchSection');
       if (!cases.length) {
         section.hidden = true;
+        const stopButton = document.getElementById('stopButton');
+        if (stopButton) stopButton.hidden = true;
         return { visible: false, isBatchPath, hasBatchData: false };
       }
       const rootCaseStatus = batch ? null : rootStatus;
-      const enriched = await Promise.all(cases.map(item => enrichBatchCase(item, rootCaseStatus)));
+      const stopButton = document.getElementById('stopButton');
+      if (stopButton) stopButton.hidden = !isBatchPath;
+      const enriched = await Promise.all(cases.map(item => enrichBatchCase(item, rootCaseStatus, !isBatchPath)));
       const counts = enriched.reduce((acc, item) => {
         acc[item.bucket] = (acc[item.bucket] || 0) + 1;
         acc.total += 1;
+        if (item.bucket === 'done' || item.bucket === 'warning') acc.completed += 1;
         acc.calls += Number(item.call_count || 0);
         acc.tokens += Number(item.total_tokens || 0);
         acc.errors += Number(item.error_count || 0);
         return acc;
-      }, { total: 0, done: 0, running: 0, error: 0, pending: 0, calls: 0, tokens: 0, errors: 0 });
+      }, { total: 0, completed: 0, done: 0, warning: 0, running: 0, stopped: 0, error: 0, pending: 0, calls: 0, tokens: 0, errors: 0 });
       section.hidden = false;
+      const runningCases = batch && Array.isArray(batch.running_cases) ? batch.running_cases.join(', ') : '';
       document.getElementById('batchSummary').innerHTML = [
+        `<span class="pill">Batch: ${(batch && batch.batch_id) || '-'}</span>`,
+        `<span class="pill">并发: ${(batch && batch.parallelism) || '-'}</span>`,
         `<span class="pill">流程总数: ${counts.total}</span>`,
-        `<span class="pill">完成: ${counts.done || 0}</span>`,
+        `<span class="pill">完成: ${counts.completed || 0}</span>`,
+        `<span class="pill">警告完成: ${counts.warning || 0}</span>`,
         `<span class="pill">运行中: ${counts.running || 0}</span>`,
+        `<span class="pill">已停止: ${counts.stopped || 0}</span>`,
         `<span class="pill">等待/未知: ${counts.pending || 0}</span>`,
         `<span class="pill">错误: ${counts.error || 0}</span>`,
-        `<span class="pill">Tokens: ${fmt(counts.tokens)}</span>`
+        `<span class="pill">Tokens: ${fmt(counts.tokens)}</span>`,
+        `<span class="pill">Active: ${runningCases || '-'}</span>`,
+        `<span class="pill">Batch PGID: ${(batch && batch.batch_pgid) || '-'}</span>`
       ].join('');
       document.getElementById('batchGrid').innerHTML = enriched.map(item => {
         const href = item.monitor_href ? `<a class="case-link" href="${item.monitor_href}">打开单流程 monitor</a>` : '';
@@ -524,7 +632,13 @@ MONITOR_HTML = """<!doctype html>
             <div>Calls<br><strong>${fmt(item.call_count)}</strong></div>
             <div>Tokens<br><strong>${fmt(item.total_tokens)}</strong></div>
           </div>
+          <div class="case-meta">
+            <div>PID<br><strong>${item.pid || '-'}</strong></div>
+            <div>PGID<br><strong>${item.pgid || '-'}</strong></div>
+            <div>Updated<br><strong>${item.updated_at || '-'}</strong></div>
+          </div>
           <div class="small">${item.current_step || item.scenario || '等待状态文件'}</div>
+          ${item.audit_warning_count ? `<div class="small">Audit warnings: ${fmt(item.audit_warning_count)} ${Array.isArray(item.audit_warnings) && item.audit_warnings.length ? '(' + item.audit_warnings.join(', ') + ')' : ''}</div>` : ''}
           ${href}
         </article>`;
       }).join('');
@@ -533,14 +647,19 @@ MONITOR_HTML = """<!doctype html>
         isBatchPath,
         hasBatchData: Boolean(batch),
         total: counts.total,
-        done: counts.done || 0,
+        done: counts.completed || 0,
+        warning: counts.warning || 0,
         running: counts.running || 0,
         error: counts.error || 0,
         pending: counts.pending || 0,
+        stopped: counts.stopped || 0,
         callCount: counts.calls,
         totalTokens: counts.tokens,
         errorCount: counts.errors,
-        status: (batch && batch.status) || (counts.error ? 'error' : counts.running ? 'running' : counts.done === counts.total ? 'done' : 'starting'),
+        parallelism: (batch && batch.parallelism) || '',
+        runningCases: runningCases,
+        stopRequested: Boolean(batch && batch.stop_requested),
+        status: batchStatusForDisplay(batch, counts),
         updatedAt: (batch && batch.updated_at) || ''
       };
     }
@@ -570,6 +689,9 @@ MONITOR_HTML = """<!doctype html>
       if ((m = s.match(/loop (\\d+): stage report/))) {
         return { name: 'Stage Report', detail: `第 ${m[1]} 回合：汇总本回合共识、分歧、条款修订、外部审批事项和下一轮重点。` };
       }
+      if (/warning/.test(s)) {
+        return { name: 'Completed With Warnings', detail: '主流程已经完成；audit 发现截断输出或预览缺失等质量警告，但不是运行崩溃。' };
+      }
       if (/final summary/.test(s)) {
         return { name: 'Final Summary', detail: '标准最终总结：汇总全部阶段报告并生成最终议案概览。' };
       }
@@ -586,7 +708,8 @@ MONITOR_HTML = """<!doctype html>
     }
     function statusClass(status) {
       if (status === 'done') return 'value ok';
-      if (status === 'error' || status === 'offline') return 'value danger';
+      if (status === 'completed_with_warnings') return 'value warn';
+      if (status === 'error' || status === 'failed' || status === 'offline') return 'value danger';
       return 'value warn';
     }
     function showLoadError(err) {
@@ -598,7 +721,7 @@ MONITOR_HTML = """<!doctype html>
       document.getElementById('phaseName').textContent = 'No Status';
       document.getElementById('phaseSub').textContent = 'status.json not readable';
       document.getElementById('calls').textContent = '0';
-      document.getElementById('callSub').textContent = '没有可读取的 transcript.jsonl';
+      document.getElementById('callSub').textContent = '没有可读取的 process/transcript.jsonl';
       document.getElementById('tokens').textContent = '0';
       document.getElementById('tokenSub').textContent = 'Prompt 0 · Output 0';
       document.getElementById('cost').textContent = money(0);
@@ -611,32 +734,66 @@ MONITOR_HTML = """<!doctype html>
       document.getElementById('events').textContent = '等待运行写入事件。';
       document.getElementById('previewTabs').innerHTML = '';
       document.getElementById('previewMeta').textContent = '没有可预览的产物';
-      document.getElementById('previewBox').textContent = 'monitor.html 已加载，但 status.json / transcript.jsonl 尚不可用。';
+        document.getElementById('previewBox').textContent = 'monitor.html 已加载，但 status.json / process/transcript.jsonl 尚不可用。';
       document.getElementById('bytype').innerHTML = '<tr><td colspan="7">暂无调用记录</td></tr>';
       document.getElementById('pricingNote').textContent = '页面正常加载；等待运行产物后会自动刷新。';
     }
     async function refresh() {
       try {
-        const res = await fetch('status.json?ts=' + Date.now());
-        let s = res.ok ? await res.json() : null;
-        const batchInfo = await updateBatchSection(s);
-        if (!s && !batchInfo.visible) throw new Error(`status.json HTTP ${res.status}`);
-        if (!s) {
-          s = {
-            scenario_title: `Nightly All Tests · ${batchInfo.total} 个流程`,
-            total_loops: batchInfo.total,
-            current_loop: batchInfo.done,
-            status: batchInfo.status,
-            current_step: 'batch monitor',
-            updated_at: '',
-            events: [],
-            call_count: batchInfo.callCount,
-            total_tokens: batchInfo.totalTokens,
-            error_count: batchInfo.errorCount,
-            by_type: {}
-          };
+        const isBatchMonitor = Boolean(batchStatusPathForCurrentPage());
+        let s = null;
+        let statusCode = 0;
+        if (!isBatchMonitor) {
+          const res = await fetch('status.json?ts=' + Date.now());
+          statusCode = res.status;
+          s = res.ok ? await res.json() : null;
         }
-        const transcriptRows = parseJsonl(await fetchText('transcript.jsonl'));
+        const batchInfo = await updateBatchSection(s);
+        if (batchInfo.visible && batchInfo.isBatchPath) {
+          const batchPct = batchInfo.total ? Math.round((batchInfo.done / batchInfo.total) * 100) : 0;
+          document.getElementById('scenario').textContent = `Nightly All Tests · ${batchInfo.total} 个流程`;
+          document.getElementById('updated').textContent = '更新：' + (batchInfo.updatedAt || '');
+          document.getElementById('status').textContent = batchInfo.status;
+          document.getElementById('status').className = statusClass(batchInfo.status);
+          document.getElementById('loop').parentElement.querySelector('.label').textContent = '流程';
+          document.getElementById('loop').textContent = `${batchInfo.done}/${batchInfo.total}`;
+          document.getElementById('phaseName').textContent = 'Batch Monitor';
+          document.getElementById('phaseSub').textContent = `${batchInfo.running} running · ${batchInfo.pending} pending · ${batchInfo.warning || 0} warnings · parallel ${batchInfo.parallelism || '-'}`;
+          document.getElementById('calls').textContent = fmt(batchInfo.callCount || 0);
+          document.getElementById('callSub').textContent = `${batchInfo.total} 个流程的聚合调用数`;
+          document.getElementById('tokens').textContent = fmt(batchInfo.totalTokens || 0);
+          document.getElementById('tokenSub').textContent = `${batchInfo.total} 个流程的聚合 token`;
+          document.getElementById('cost').textContent = batchInfo.totalTokens ? '见单流程' : money(0);
+          document.getElementById('costSub').textContent = '总控页只聚合 token；精确费用和缓存命中在单流程 monitor 查看。';
+          document.getElementById('errors').textContent = batchInfo.errorCount || 0;
+          document.getElementById('progressBar').style.width = `${batchPct}%`;
+          document.getElementById('phaseDescription').textContent = `总控页正在聚合 ${batchInfo.total} 个测试流程。当前并发上限为 ${batchInfo.parallelism || '-'}；运行中：${batchInfo.runningCases || '-'}。`;
+          document.getElementById('phaseDetail').innerHTML = [
+            `<span class="pill">完成：${batchInfo.done}/${batchInfo.total}</span>`,
+            `<span class="pill">警告完成：${batchInfo.warning || 0}</span>`,
+            `<span class="pill">运行中：${batchInfo.running}</span>`,
+            `<span class="pill">已停止：${batchInfo.stopped}</span>`,
+            `<span class="pill">等待/未知：${batchInfo.pending}</span>`,
+            `<span class="pill">错误：${batchInfo.error}</span>`,
+            `<span class="pill">停止请求：${batchInfo.stopRequested ? 'yes' : 'no'}</span>`
+          ].join('');
+          document.getElementById('tokenBreakdown').innerHTML = [
+            `<span class="pill">聚合调用：${fmt(batchInfo.callCount || 0)}</span>`,
+            `<span class="pill">聚合 token：${fmt(batchInfo.totalTokens || 0)}</span>`,
+            `<span class="pill">聚合错误：${fmt(batchInfo.errorCount || 0)}</span>`,
+            `<span class="pill">批次完成：${batchInfo.done}/${batchInfo.total}</span>`
+          ].join('');
+          document.getElementById('events').textContent = `批量运行中：${batchInfo.running} running · ${batchInfo.pending} pending · ${batchInfo.done} completed · ${batchInfo.warning || 0} warnings · ${batchInfo.stopped} stopped`;
+          document.getElementById('previewTabs').innerHTML = '';
+          document.getElementById('previewMeta').textContent = '批量总控';
+          document.getElementById('previewBox').textContent = `当前页面聚合 ${batchInfo.total} 个流程。点击每个 CASE 卡片的单流程 monitor 查看该 case 的阶段、token、费用估算和产物预览。`;
+          document.getElementById('bytype').innerHTML = '<tr><td colspan="7">批量页不混用根目录旧 transcript；调用类型拆分请打开单流程 monitor 查看。</td></tr>';
+          document.getElementById('pricingNote').textContent = '批量页只展示跨流程进度和 token 聚合，精确模型/缓存费用以单流程 monitor 和 DeepSeek 账单为准。';
+          return;
+        }
+        if (!s && !batchInfo.visible) throw new Error(`status.json HTTP ${statusCode || 'unavailable'}`);
+        const shouldReadTranscript = Number(s.call_count || 0) > 0 || Number(s.total_tokens || 0) > 0 || s.status === 'done';
+        const transcriptRows = shouldReadTranscript ? parseJsonl(await fetchText('process/transcript.jsonl')) : [];
         const ts = summarizeTranscript(transcriptRows);
         const phase = activePhase(s.events || [], s.current_step || '');
         const tokenTotal = ts.totals.total || s.total_tokens || 0;
@@ -657,53 +814,12 @@ MONITOR_HTML = """<!doctype html>
         document.getElementById('costSub').textContent = ts.totals.cacheKnownRows ? `含 ${ts.totals.cacheKnownRows} 条缓存拆分记录` : '缓存命中未知，按 input cache miss 保守估算';
         document.getElementById('errors').textContent = s.error_count || 0;
         document.getElementById('progressBar').style.width = `${pct}%`;
-        if (batchInfo.visible && batchInfo.isBatchPath) {
-          const batchPct = batchInfo.total ? Math.round((batchInfo.done / batchInfo.total) * 100) : 0;
-          document.getElementById('scenario').textContent = `Nightly All Tests · ${batchInfo.total} 个流程`;
-          document.getElementById('updated').textContent = '更新：' + (batchInfo.updatedAt || '');
-          document.getElementById('status').textContent = batchInfo.status;
-          document.getElementById('status').className = statusClass(batchInfo.status);
-          document.getElementById('loop').parentElement.querySelector('.label').textContent = '流程';
-          document.getElementById('loop').textContent = `${batchInfo.done}/${batchInfo.total}`;
-          document.getElementById('phaseName').textContent = 'Batch Monitor';
-          document.getElementById('phaseSub').textContent = `${batchInfo.running} running · ${batchInfo.pending} pending`;
-          document.getElementById('calls').textContent = fmt(batchInfo.callCount || 0);
-          document.getElementById('callSub').textContent = `${batchInfo.total} 个流程的聚合调用数`;
-          document.getElementById('tokens').textContent = fmt(batchInfo.totalTokens || 0);
-          document.getElementById('tokenSub').textContent = `${batchInfo.total} 个流程的聚合 token`;
-          document.getElementById('cost').textContent = batchInfo.totalTokens ? '见单流程' : money(0);
-          document.getElementById('costSub').textContent = '总控页只聚合 token；精确费用和缓存命中在单流程 monitor 查看。';
-          document.getElementById('errors').textContent = batchInfo.errorCount || s.error_count || 0;
-          document.getElementById('progressBar').style.width = `${batchPct}%`;
-        }
         document.getElementById('phaseDescription').textContent = phase.desc.detail;
         document.getElementById('phaseDetail').innerHTML = [
           `<span class="pill">原始步骤：${s.current_step || '-'}</span>`,
           `<span class="pill">活跃阶段：${phase.base || '-'}</span>`,
           `<span class="pill">状态文件调用：${fmt(s.call_count || 0)}</span>`
         ].join('');
-        if (batchInfo.visible && batchInfo.isBatchPath) {
-          document.getElementById('phaseDescription').textContent = `总控页正在聚合 ${batchInfo.total} 个测试流程。每个流程会优先读取 batch_status.json 中的状态，也可以读取子目录 status.json；单流程详情继续在各自 monitor 页面查看。`;
-          document.getElementById('phaseDetail').innerHTML = [
-            `<span class="pill">完成：${batchInfo.done}/${batchInfo.total}</span>`,
-            `<span class="pill">运行中：${batchInfo.running}</span>`,
-            `<span class="pill">等待/未知：${batchInfo.pending}</span>`,
-            `<span class="pill">错误：${batchInfo.error}</span>`
-          ].join('');
-          document.getElementById('tokenBreakdown').innerHTML = [
-            `<span class="pill">聚合调用：${fmt(batchInfo.callCount || 0)}</span>`,
-            `<span class="pill">聚合 token：${fmt(batchInfo.totalTokens || 0)}</span>`,
-            `<span class="pill">聚合错误：${fmt(batchInfo.errorCount || 0)}</span>`,
-            `<span class="pill">批次完成：${batchInfo.done}/${batchInfo.total}</span>`
-          ].join('');
-          document.getElementById('events').textContent = `批量运行中：${batchInfo.running} running · ${batchInfo.pending} pending · ${batchInfo.done} done`;
-          document.getElementById('previewTabs').innerHTML = '';
-          document.getElementById('previewMeta').textContent = '批量总控';
-          document.getElementById('previewBox').textContent = `当前页面聚合 ${batchInfo.total} 个流程。点击每个 CASE 卡片的单流程 monitor 查看该 case 的阶段、token、费用估算和产物预览。`;
-          document.getElementById('bytype').innerHTML = '<tr><td colspan="7">批量页不混用根目录旧 transcript；调用类型拆分请打开单流程 monitor 查看。</td></tr>';
-          document.getElementById('pricingNote').textContent = '批量页只展示跨流程进度和 token 聚合，精确模型/缓存费用以单流程 monitor 和 DeepSeek 账单为准。';
-          return;
-        }
         document.getElementById('tokenBreakdown').innerHTML = [
           `<span class="pill">Prompt: ${fmt(ts.totals.prompt)}</span>`,
           `<span class="pill">Output: ${fmt(ts.totals.completion)}</span>`,

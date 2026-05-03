@@ -11,7 +11,7 @@ from abcagentchat.metrics import audit_run_dir, write_metrics
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit an ABCagentchat run directory.")
     parser.add_argument("run_dir", type=Path)
-    parser.add_argument("--write", action="store_true", help="Write metrics.json into the run directory.")
+    parser.add_argument("--write", action="store_true", help="Write process/metrics.json into the run directory.")
     return parser.parse_args()
 
 
@@ -25,4 +25,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,0 +1,61 @@
+{
+  "run_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/14_sexual_content_social_harm",
+  "loops": 3,
+  "expected_calls": 72,
+  "checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true,
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "blocking_checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true
+  },
+  "warning_checks": {
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "passed": true,
+  "strict_passed": false,
+  "warnings": [
+    "has_no_length_stops",
+    "has_no_empty_previews"
+  ],
+  "warning_count": 2,
+  "missing_files": [],
+  "failed_rounds": {},
+  "error_count": 0,
+  "transcript": {
+    "call_count": 72,
+    "by_type": {
+      "compact": 3,
+      "planning": 3,
+      "role_B": 15,
+      "role_A": 15,
+      "role_D": 15,
+      "role_C": 15,
+      "stage_report": 3,
+      "planning_repair": 2,
+      "final_summary": 1
+    },
+    "by_client": {
+      "coordinator": 12,
+      "B": 15,
+      "A": 15,
+      "D": 15,
+      "C": 15
+    },
+    "prompt_tokens": 2945827,
+    "completion_tokens": 331780,
+    "reasoning_tokens": 38844,
+    "total_tokens": 3277607,
+    "elapsed_seconds": 10049.051,
+    "length_stops": 2,
+    "empty_or_missing_previews": 2
+  }
+}

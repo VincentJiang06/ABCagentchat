@@ -1,0 +1,61 @@
+# Output Tree
+
+- compact and planning/
+  - loop_01/
+    - background_context.md
+    - compact.md
+    - discussion_plan.json
+    - discussion_plan.md
+    - discussion_plan.raw.json
+    - discussion_plan.repaired.json
+  - loop_02/
+    - background_context.md
+    - compact.md
+    - discussion_plan.json
+    - discussion_plan.md
+    - discussion_plan.raw.json
+    - discussion_plan.repaired.json
+  - loop_03/
+    - background_context.md
+    - compact.md
+    - discussion_plan.json
+    - discussion_plan.md
+    - discussion_plan.raw.json
+    - discussion_plan.repaired.json
+- final summary/
+  - 00_full_final_summary.md
+  - 01_discussion_result.md
+  - 02_process_analysis.md
+  - 03_synthesized_document.md
+  - 04_evidence_and_next_steps.md
+  - README.md
+  - final_summary.md
+  - manifest.json
+  - process_timeline.md
+- framework/
+  - input.md
+  - run_config.json
+- monitor.html
+- process/
+  - loop_01/
+    - stage_report.md
+    - subcycle_01_a/
+      - discussion_round_01.jsonl
+      - discussion_round_02.jsonl
+      - discussion_round_03.jsonl
+  - loop_02/
+    - stage_report.md
+    - subcycle_01_a/
+      - discussion_round_01.jsonl
+      - discussion_round_02.jsonl
+      - discussion_round_03.jsonl
+  - loop_03/
+    - stage_report.md
+    - subcycle_01_a/
+      - discussion_round_01.jsonl
+      - discussion_round_02.jsonl
+      - discussion_round_03.jsonl
+  - run.log
+  - transcript.jsonl
+  - warnings.jsonl
+- status.json

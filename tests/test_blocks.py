@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -9,6 +11,7 @@ from io import StringIO
 from pathlib import Path
 
 from abcagentchat.api import DeepSeekClient, ModelSettings, normalize_reasoning_effort
+from abcagentchat.batch_control import request_stop, read_json as read_batch_json, status_path, stop_from_status, write_json as write_batch_json
 from abcagentchat.conversation import Conversation
 from abcagentchat.gc import prune_old_runs, trim_text
 from abcagentchat.metrics import audit_run_dir
@@ -52,7 +55,7 @@ primary_tests:
         paths = sorted(scenario_dir.glob("*.md"))
         self.assertEqual(len(paths), 20)
         scenarios = [load_scenario(path) for path in paths]
-        self.assertTrue(all(scenario.loops == 5 for scenario in scenarios))
+        self.assertTrue(all(scenario.loops == 3 for scenario in scenarios))
         self.assertEqual(len({scenario.title for scenario in scenarios}), 20)
 
 
@@ -97,6 +100,7 @@ class UtilityTests(unittest.TestCase):
             reasoning_effort="high",
         )
         role_payload = role.build_payload([{"role": "user", "content": "x"}])
+        self.assertEqual(role_payload["model"], "deepseek-v4-pro")
         self.assertEqual(coordinator_payload["thinking"], {"type": "enabled"})
         self.assertEqual(coordinator_payload["reasoning_effort"], "max")
         self.assertEqual(coordinator_override_payload["reasoning_effort"], "high")
@@ -163,27 +167,28 @@ primary_tests:
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
 
-            metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+            metrics = json.loads((out / "process" / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
-            self.assertEqual(metrics["transcript"]["call_count"], 20)
+            self.assertEqual(metrics["transcript"]["call_count"], 16)
             for final_file in [
-                "final_summary.md",
-                "run_index.md",
-                "final/README.md",
-                "final/manifest.json",
-                "final/00_full_final_summary.md",
-                "final/01_discussion_result.md",
-                "final/02_process_analysis.md",
-                "final/03_synthesized_document.md",
-                "final/04_evidence_and_next_steps.md",
-                "final/final_summary.md",
-                "final/process_timeline.md",
-                "final/output_tree.md",
+                "framework/input.md",
+                "framework/run_config.json",
+                "framework/run_index.md",
+                "final summary/README.md",
+                "final summary/manifest.json",
+                "final summary/00_full_final_summary.md",
+                "final summary/01_discussion_result.md",
+                "final summary/02_process_analysis.md",
+                "final summary/03_synthesized_document.md",
+                "final summary/04_evidence_and_next_steps.md",
+                "final summary/final_summary.md",
+                "final summary/process_timeline.md",
+                "final summary/output_tree.md",
             ]:
                 self.assertTrue((out / final_file).exists(), final_file)
             rows = [
                 json.loads(line)
-                for line in (out / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
+                for line in (out / "process" / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
             ]
             first_by_type = {}
             for row in rows:
@@ -198,9 +203,10 @@ primary_tests:
             self.assertEqual(first_by_type["stage_report"]["max_tokens"], 65536)
             self.assertEqual(first_by_type["final_summary"]["temperature"], 0.5)
             self.assertEqual(first_by_type["final_summary"]["max_tokens"], 65536)
-            for round_index in range(1, 5):
-                round_path = out / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
+            for round_index in range(1, 4):
+                round_path = out / "process" / "loop_01" / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 self.assertEqual(len(round_path.read_text(encoding="utf-8").splitlines()), 4)
+            self.assertFalse((out / "process" / "loop_01" / "subcycle_01_a" / "discussion_round_04.jsonl").exists())
 
     def test_dry_run_two_loops_expected_call_formula(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -213,11 +219,11 @@ primary_tests:
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
 
-            metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+            metrics = json.loads((out / "process" / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
-            self.assertEqual(metrics["expected_calls"], 39)
-            self.assertEqual(metrics["transcript"]["call_count"], 39)
-            loop2_background = (out / "loop_02" / "background_context.md").read_text(encoding="utf-8")
+            self.assertEqual(metrics["expected_calls"], 31)
+            self.assertEqual(metrics["transcript"]["call_count"], 31)
+            loop2_background = (out / "compact and planning" / "loop_02" / "background_context.md").read_text(encoding="utf-8")
             self.assertIn("第 1 个循环 compact", loop2_background)
             self.assertIn("# 原始议题全文", loop2_background)
 
@@ -232,48 +238,117 @@ primary_tests:
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
 
-            metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+            metrics = json.loads((out / "process" / "metrics.json").read_text(encoding="utf-8"))
             self.assertTrue(metrics["passed"], metrics)
-            self.assertEqual(metrics["expected_calls"], 116)
+            self.assertEqual(metrics["expected_calls"], 92)
             self.assertEqual(metrics["transcript"]["by_type"]["compact_archive_summary"], 1)
 
-            loop6_background = (out / "loop_06" / "background_context.md").read_text(encoding="utf-8")
+            loop6_background = (out / "compact and planning" / "loop_06" / "background_context.md").read_text(encoding="utf-8")
             self.assertIn("第 1-1 个循环 compact 滚动开放讨论账本摘要", loop6_background)
             self.assertIn("更早 Compact 滚动开放讨论账本", loop6_background)
             self.assertIn("第 1 个循环 compact（梯度摘录", loop6_background)
             self.assertIn("## 第 2 个循环 compact（全文）\n# Compact 开放讨论状态账本", loop6_background)
             self.assertIn("## 第 5 个循环 compact（全文）\n# Compact 开放讨论状态账本", loop6_background)
-            self.assertTrue((out / "compact_archive_summary.md").exists())
+            self.assertTrue((out / "compact and planning" / "compact_archive_summary.md").exists())
 
             rows = [
                 json.loads(line)
-                for line in (out / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
+                for line in (out / "process" / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
             ]
             archive_rows = [row for row in rows if row["call_type"] == "compact_archive_summary"]
             self.assertEqual(archive_rows[0]["request"]["thinking"], {"type": "enabled"})
             self.assertEqual(archive_rows[0]["request"]["reasoning_effort"], "max")
 
-    def test_loop_cap_defaults_to_5(self) -> None:
+    def test_parallel_batch_dry_run_records_process_groups(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scenarios = root / "scenarios"
+            scenarios.mkdir()
+            for index in range(1, 5):
+                (scenarios / f"{index:02d}_case.md").write_text(
+                    f"---\ntitle: 并发样例 {index}\nloops: 1\n---\n# 情景设定\n测试 {index}。",
+                    encoding="utf-8",
+                )
+            out = root / "batch"
+            cmd = [
+                sys.executable,
+                str(repo / "run_all_scenarios.py"),
+                "--scenarios-dir",
+                str(scenarios),
+                "--out",
+                str(out),
+                "--batch-id",
+                "test-batch",
+                "--dry-run",
+                "--parallel",
+                "3",
+                "--loops",
+                "1",
+                "--poll-seconds",
+                "0.01",
+            ]
+            result = subprocess.run(cmd, cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            status = json.loads((out / "batch_status.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["status"], "done")
+            self.assertEqual(status["parallelism"], 3)
+            self.assertEqual(status["running_cases"], [])
+            self.assertEqual(len(status["cases"]), 4)
+            self.assertTrue(all(case["status"] == "done" for case in status["cases"]))
+            self.assertTrue(all(case.get("pid") and case.get("pgid") for case in status["cases"]))
+            first_run = Path(status["cases"][0]["run_dir"])
+            self.assertTrue((first_run / "process" / "run.log").exists())
+            self.assertTrue((first_run / "process" / "metrics.json").exists())
+            self.assertFalse((first_run / "process" / "loop_01" / "subcycle_01_a" / "discussion_round_04.jsonl").exists())
+
+    def test_stop_helper_marks_running_and_pending_cases_stopped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            batch_root = Path(tmp)
+            write_batch_json(
+                status_path(batch_root),
+                {
+                    "status": "running",
+                    "cases": [
+                        {"slug": "active", "status": "running", "pgid": -1},
+                        {"slug": "queued", "status": "pending"},
+                        {"slug": "done", "status": "done"},
+                    ],
+                },
+            )
+            request_stop(batch_root, reason="unit test", stop_monitor=True)
+            result = stop_from_status(batch_root, timeout=0.01)
+            self.assertEqual(result["status"], "stopped")
+            status = read_batch_json(status_path(batch_root))
+            by_slug = {case["slug"]: case["status"] for case in status["cases"]}
+            self.assertEqual(by_slug["active"], "stopped")
+            self.assertEqual(by_slug["queued"], "stopped")
+            self.assertEqual(by_slug["done"], "done")
+
+    def test_loop_cap_defaults_to_3(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scenario_path = root / "scenario.md"
-            scenario_path.write_text("---\ntitle: 五轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
+            scenario_path.write_text("---\ntitle: 三轮上限\nloops: 150\n---\n# 情景设定\n测试。", encoding="utf-8")
             scenario = load_scenario(scenario_path)
             out = root / "runs" / "cap"
             simulator = Simulator(root=root, config=None, options=RunOptions(output_dir=out, dry_run=True))
             with redirect_stdout(StringIO()):
                 simulator.run(scenario)
-            run_config = json.loads((out / "run_config.json").read_text(encoding="utf-8"))
+            run_config = json.loads((out / "framework" / "run_config.json").read_text(encoding="utf-8"))
             self.assertEqual(run_config["scenario"]["requested_loops"], 150)
-            self.assertEqual(run_config["scenario"]["loops"], 5)
+            self.assertEqual(run_config["scenario"]["loops"], 3)
 
     def test_audit_detects_missing_round_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
-            (run / "loop_01").mkdir()
-            (run / "input.md").write_text("input", encoding="utf-8")
-            (run / "final_summary.md").write_text("final", encoding="utf-8")
-            (run / "run_config.json").write_text(
+            (run / "process" / "loop_01").mkdir(parents=True)
+            (run / "compact and planning" / "loop_01").mkdir(parents=True)
+            (run / "framework").mkdir()
+            (run / "final summary").mkdir()
+            (run / "framework" / "input.md").write_text("input", encoding="utf-8")
+            (run / "framework" / "run_index.md").write_text("index", encoding="utf-8")
+            (run / "framework" / "run_config.json").write_text(
                 json.dumps({"scenario": {"loops": 1}, "options": {"rounds_per_subcycle": 3, "role_summary_round": True}}),
                 encoding="utf-8",
             )
@@ -283,14 +358,27 @@ primary_tests:
                 "discussion_plan.raw.json",
                 "discussion_plan.json",
                 "discussion_plan.md",
-                "stage_report.md",
             ]:
-                (run / "loop_01" / name).write_text("x", encoding="utf-8")
-            (run / "loop_01" / "discussion_plan.json").write_text(
+                (run / "compact and planning" / "loop_01" / name).write_text("x", encoding="utf-8")
+            (run / "process" / "loop_01" / "stage_report.md").write_text("x", encoding="utf-8")
+            for name in [
+                "README.md",
+                "manifest.json",
+                "00_full_final_summary.md",
+                "01_discussion_result.md",
+                "02_process_analysis.md",
+                "03_synthesized_document.md",
+                "04_evidence_and_next_steps.md",
+                "final_summary.md",
+                "process_timeline.md",
+                "output_tree.md",
+            ]:
+                (run / "final summary" / name).write_text("{}" if name.endswith(".json") else "x", encoding="utf-8")
+            (run / "compact and planning" / "loop_01" / "discussion_plan.json").write_text(
                 json.dumps({"groups": [{"group_id": "a"}]}),
                 encoding="utf-8",
             )
-            subcycle = run / "loop_01" / "subcycle_01_a"
+            subcycle = run / "process" / "loop_01" / "subcycle_01_a"
             subcycle.mkdir()
             (subcycle / "discussion_round_01.jsonl").write_text(
                 "\n".join("{}" for _ in range(3)) + "\n",
@@ -301,11 +389,67 @@ primary_tests:
                     "\n".join("{}" for _ in range(4)) + "\n",
                     encoding="utf-8",
                 )
-            (run / "transcript.jsonl").write_text("\n".join(json.dumps({"usage": {}, "content_preview": "x"}) for _ in range(20)) + "\n", encoding="utf-8")
+            (run / "process" / "transcript.jsonl").write_text("\n".join(json.dumps({"usage": {}, "content_preview": "x"}) for _ in range(20)) + "\n", encoding="utf-8")
 
             metrics = audit_run_dir(run)
             self.assertFalse(metrics["passed"])
-            self.assertIn("loop_01/subcycle_01_a/discussion_round_01.jsonl", metrics["failed_rounds"])
+            self.assertIn("process/loop_01/subcycle_01_a/discussion_round_01.jsonl", metrics["failed_rounds"])
+
+    def test_audit_treats_length_and_preview_issues_as_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            (run / "process" / "loop_01").mkdir(parents=True)
+            (run / "compact and planning" / "loop_01").mkdir(parents=True)
+            (run / "framework").mkdir()
+            (run / "final summary").mkdir()
+            (run / "framework" / "input.md").write_text("input", encoding="utf-8")
+            (run / "framework" / "run_index.md").write_text("index", encoding="utf-8")
+            (run / "framework" / "run_config.json").write_text(
+                json.dumps({"scenario": {"loops": 1}, "options": {"rounds_per_subcycle": 3, "role_summary_round": False}}),
+                encoding="utf-8",
+            )
+            for name in [
+                "background_context.md",
+                "compact.md",
+                "discussion_plan.raw.json",
+                "discussion_plan.json",
+                "discussion_plan.md",
+            ]:
+                (run / "compact and planning" / "loop_01" / name).write_text("x", encoding="utf-8")
+            (run / "compact and planning" / "loop_01" / "discussion_plan.json").write_text(
+                json.dumps({"groups": []}),
+                encoding="utf-8",
+            )
+            (run / "process" / "loop_01" / "stage_report.md").write_text("x", encoding="utf-8")
+            for name in [
+                "README.md",
+                "manifest.json",
+                "00_full_final_summary.md",
+                "01_discussion_result.md",
+                "02_process_analysis.md",
+                "03_synthesized_document.md",
+                "04_evidence_and_next_steps.md",
+                "final_summary.md",
+                "process_timeline.md",
+                "output_tree.md",
+            ]:
+                (run / "final summary" / name).write_text("{}" if name.endswith(".json") else "x", encoding="utf-8")
+            rows = [
+                {"call_type": "compact", "client_key": "coordinator", "usage": {}, "content_preview": "x"},
+                {"call_type": "planning", "client_key": "coordinator", "usage": {}, "content_preview": "x"},
+                {"call_type": "stage_report", "client_key": "coordinator", "usage": {"finish_reason": "length"}, "content_preview": ""},
+                {"call_type": "final_summary", "client_key": "coordinator", "usage": {}, "content_preview": "x"},
+            ]
+            (run / "process" / "transcript.jsonl").write_text(
+                "\n".join(json.dumps(row) for row in rows) + "\n",
+                encoding="utf-8",
+            )
+
+            metrics = audit_run_dir(run)
+            self.assertTrue(metrics["passed"], metrics)
+            self.assertFalse(metrics["strict_passed"])
+            self.assertEqual(metrics["warning_count"], 2)
+            self.assertEqual(metrics["warnings"], ["has_no_length_stops", "has_no_empty_previews"])
 
 
 if __name__ == "__main__":

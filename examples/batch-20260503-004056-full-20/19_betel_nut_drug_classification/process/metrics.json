@@ -1,0 +1,61 @@
+{
+  "run_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/19_betel_nut_drug_classification",
+  "loops": 3,
+  "expected_calls": 60,
+  "checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true,
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "blocking_checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true
+  },
+  "warning_checks": {
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "passed": true,
+  "strict_passed": false,
+  "warnings": [
+    "has_no_length_stops",
+    "has_no_empty_previews"
+  ],
+  "warning_count": 2,
+  "missing_files": [],
+  "failed_rounds": {},
+  "error_count": 0,
+  "transcript": {
+    "call_count": 60,
+    "by_type": {
+      "compact": 3,
+      "planning": 3,
+      "role_D": 12,
+      "role_B": 12,
+      "role_C": 12,
+      "role_A": 12,
+      "stage_report": 3,
+      "planning_repair": 2,
+      "final_summary": 1
+    },
+    "by_client": {
+      "coordinator": 12,
+      "D": 12,
+      "B": 12,
+      "C": 12,
+      "A": 12
+    },
+    "prompt_tokens": 2844142,
+    "completion_tokens": 309928,
+    "reasoning_tokens": 35725,
+    "total_tokens": 3154070,
+    "elapsed_seconds": 9738.613,
+    "length_stops": 3,
+    "empty_or_missing_previews": 2
+  }
+}

@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also include generated background_context.md files. Usually redundant and very large.",
     )
-    parser.add_argument("--output", default="deep_final_summary.md", help="Output filename inside the run directory.")
+    parser.add_argument("--output", default="final summary/deep_final_summary.md", help="Output filename inside the run directory.")
     parser.add_argument(
         "--package-dir",
         default=DEFAULT_PACKAGE_DIR,

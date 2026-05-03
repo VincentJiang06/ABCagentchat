@@ -1,0 +1,45 @@
+{
+  "scenario": {
+    "path": "/Users/vincent/playground/ABCagentchat/scenarios/03_complete_community_priorities.md",
+    "title": "完整社区建设项目排序议案",
+    "requested_loops": 3,
+    "loops": 3,
+    "domain": "community_planning",
+    "source_refs": [
+      {
+        "title": "两部门印发通知开展完整社区建设试点工作",
+        "url": "https://www.gov.cn/xinwen/2022-11/01/content_5723235.htm"
+      },
+      {
+        "title": "106个社区将开展完整社区建设试点",
+        "url": "https://www.gov.cn/lianbo/bumen/202307/content_6893765.htm"
+      }
+    ],
+    "primary_tests": [
+      "priority_ranking",
+      "budget_constraint",
+      "resident_participation",
+      "stakeholder_tradeoff"
+    ]
+  },
+  "options": {
+    "output_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/03_complete_community_priorities",
+    "keep_runs": 0,
+    "dry_run": false,
+    "timeout": 600,
+    "recent_context_chars": 32000,
+    "planning_context_chars": 16000,
+    "preview_chars": 260,
+    "max_loops": 3,
+    "max_subcycles": 3,
+    "rounds_per_subcycle": 3,
+    "role_summary_round": false,
+    "coordinator_max_tokens": 65536,
+    "planning_max_tokens": 8192,
+    "role_max_tokens": 6144,
+    "stage_max_tokens": 65536,
+    "final_max_tokens": 65536,
+    "enable_monitor": true
+  },
+  "dry_run": false
+}

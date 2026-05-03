@@ -6,13 +6,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .layout import compact_planning_loop_dir, compact_planning_root, final_summary_root, framework_root, process_loop_dir, process_root
 from .prompts import COORDINATOR_SYSTEM
 from .runtime_io import result_summary, write_json, write_text
 
 
 DEFAULT_DEEP_CONTEXT_CHARS = 900_000
 DEFAULT_DEEP_SUMMARY_MAX_TOKENS = 65_536
-DEFAULT_PACKAGE_DIR = "deep_summary/final_package"
+DEFAULT_PACKAGE_DIR = "final summary/deep_summary/final_package"
 
 
 PACKAGE_SECTIONS = {
@@ -154,30 +155,30 @@ def collect_summary_artifacts(run_dir: Path, *, include_background: bool = False
     artifacts: list[SummaryArtifact] = []
 
     for artifact in [
-        _artifact_from_path(run_dir, run_dir / "input.md", label="原始场景", kind="scenario", priority=0),
-        _render_json_artifact(run_dir, run_dir / "run_config.json", label="运行配置", kind="metadata", priority=0),
-        _render_json_artifact(run_dir, run_dir / "metrics.json", label="运行指标", kind="metadata", priority=0),
+        _artifact_from_path(run_dir, framework_root(run_dir) / "input.md", label="原始场景", kind="scenario", priority=0),
+        _render_json_artifact(run_dir, framework_root(run_dir) / "run_config.json", label="运行配置", kind="metadata", priority=0),
+        _render_json_artifact(run_dir, process_root(run_dir) / "metrics.json", label="运行指标", kind="metadata", priority=0),
         _render_json_artifact(run_dir, run_dir / "status.json", label="监控状态", kind="metadata", priority=0),
-        _render_jsonl_artifact(run_dir, run_dir / "errors.jsonl", label="错误记录", kind="metadata", priority=0),
+        _render_jsonl_artifact(run_dir, process_root(run_dir) / "errors.jsonl", label="错误记录", kind="metadata", priority=0),
         _artifact_from_path(
             run_dir,
-            run_dir / "compact_archive_summary.md",
+            compact_planning_root(run_dir) / "compact_archive_summary.md",
             label="早期 compact 滚动摘要",
             kind="compact_archive",
             priority=1,
         ),
-        _artifact_from_path(run_dir, run_dir / "final_summary.md", label="标准最终总结", kind="baseline_summary", priority=1),
-        _artifact_from_path(run_dir, run_dir / "run_index.md", label="运行产物索引", kind="artifact_index", priority=1),
+        _artifact_from_path(run_dir, final_summary_root(run_dir) / "final_summary.md", label="标准最终总结", kind="baseline_summary", priority=1),
+        _artifact_from_path(run_dir, framework_root(run_dir) / "run_index.md", label="运行产物索引", kind="artifact_index", priority=1),
         _artifact_from_path(
             run_dir,
-            run_dir / "final" / "process_timeline.md",
+            final_summary_root(run_dir) / "process_timeline.md",
             label="最终过程时间线",
             kind="artifact_index",
             priority=1,
         ),
         _artifact_from_path(
             run_dir,
-            run_dir / "final" / "output_tree.md",
+            final_summary_root(run_dir) / "output_tree.md",
             label="最终产物树",
             kind="artifact_index",
             priority=1,
@@ -186,29 +187,34 @@ def collect_summary_artifacts(run_dir: Path, *, include_background: bool = False
         if artifact is not None:
             artifacts.append(artifact)
 
-    run_config = _load_json(run_dir / "run_config.json")
+    run_config = _load_json(framework_root(run_dir) / "run_config.json")
     loops = int((run_config.get("scenario") or {}).get("loops") or 0)
     if loops <= 0:
-        loop_dirs = sorted(run_dir.glob("loop_[0-9][0-9]"))
+        loop_indices = [
+            int(path.name.split("_", 1)[1])
+            for path in sorted(compact_planning_root(run_dir).glob("loop_[0-9][0-9]"))
+        ]
     else:
-        loop_dirs = [run_dir / f"loop_{index:02d}" for index in range(1, loops + 1)]
+        loop_indices = list(range(1, loops + 1))
 
-    for loop_dir in loop_dirs:
-        if not loop_dir.exists():
+    for loop_index in loop_indices:
+        compact_loop = compact_planning_loop_dir(run_dir, loop_index)
+        process_loop = process_loop_dir(run_dir, loop_index)
+        if not compact_loop.exists() and not process_loop.exists():
             continue
-        loop_label = loop_dir.name.replace("_", " ")
+        loop_label = f"loop {loop_index:02d}"
         loop_artifacts = [
-            _artifact_from_path(run_dir, loop_dir / "compact.md", label=f"{loop_label} compact", kind="compact", priority=1),
+            _artifact_from_path(run_dir, compact_loop / "compact.md", label=f"{loop_label} compact", kind="compact", priority=1),
             _artifact_from_path(
                 run_dir,
-                loop_dir / "stage_report.md",
+                process_loop / "stage_report.md",
                 label=f"{loop_label} 阶段报告",
                 kind="stage_report",
                 priority=1,
             ),
             _artifact_from_path(
                 run_dir,
-                loop_dir / "discussion_plan.md",
+                compact_loop / "discussion_plan.md",
                 label=f"{loop_label} 讨论计划",
                 kind="discussion_plan",
                 priority=2,
@@ -218,7 +224,7 @@ def collect_summary_artifacts(run_dir: Path, *, include_background: bool = False
             loop_artifacts.append(
                 _artifact_from_path(
                     run_dir,
-                    loop_dir / "background_context.md",
+                    compact_loop / "background_context.md",
                     label=f"{loop_label} 背景上下文",
                     kind="background_context",
                     priority=5,
@@ -226,11 +232,11 @@ def collect_summary_artifacts(run_dir: Path, *, include_background: bool = False
             )
         artifacts.extend(artifact for artifact in loop_artifacts if artifact is not None)
 
-        for round_path in sorted(loop_dir.glob("subcycle_*_*/discussion_round_*.jsonl")):
+        for round_path in sorted(process_loop.glob("subcycle_*_*/discussion_round_*.jsonl")):
             round_name = round_path.stem
             subcycle_name = round_path.parent.name
-            is_summary_round = round_name.endswith("_04")
-            priority = 2 if is_summary_round else 3
+            is_priority_round = round_name.endswith("_03") or round_name.endswith("_04")
+            priority = 2 if is_priority_round else 3
             label = f"{loop_label} {subcycle_name} {round_name}"
             artifact = _render_round_artifact(run_dir, round_path, label=label, priority=priority)
             if artifact is not None:
@@ -276,9 +282,9 @@ def build_context_bundle(
 
     header = (
         "# Deep Final Summary Context Bundle\n\n"
-        "这个证据包用于五回合结束后的深度最终总结。证据按优先级排序："
+        "这个证据包用于三循环结束后的深度最终总结。证据按优先级排序："
         "0=原始场景/配置/指标，1=compact/阶段报告/既有最终总结，"
-        "2=讨论计划与角色第4轮自总结，3=原始角色讨论，5=派生背景上下文。\n\n"
+        "2=讨论计划与角色最终压力测试轮，3=原始角色讨论，5=派生背景上下文。\n\n"
         f"- artifact_count: {len(artifacts)}\n"
         f"- original_chars: {original_chars}\n"
         f"- max_chars: {hard_cap or 'unlimited'}\n"
@@ -352,9 +358,9 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
     system = (
         COORDINATOR_SYSTEM
         + "\n\n你现在是最终总结审计器、开放问题分析员和文档合成编辑。你的任务不是复述阶段报告，也不是强行给出单一结论，"
-        "而是基于完整运行证据包重建五回合后的思想景观、临时结论、保留分歧和流程质量。请使用最强推理能力，严格区分证据、推断、共识、条件共识、不可化约分歧和外部待定事项。"
+        "而是基于完整运行证据包重建三循环后的思想景观、临时结论、保留分歧和流程质量。请使用最强推理能力，严格区分证据、推断、共识、条件共识、不可化约分歧和外部待定事项。"
     )
-    user = f"""请基于下面的“最长上下文证据包”生成五回合讨论后的 deep_summary 综合目录内容。
+    user = f"""请基于下面的“最长上下文证据包”生成三循环讨论后的 deep_summary 综合目录内容。
 
 工作要求：
 - 先以证据包为准，不要只相信既有 final_summary。
@@ -391,13 +397,13 @@ def deep_final_summary_messages(context_bundle: str) -> list[dict[str, str]]:
 # 对整个讨论流程的客观分析
 
 必须包含：
-1. 流程概览：五回合、每回合 compact/planning/subcycle/stage report/final 的实际作用
+1. 流程概览：三循环、每循环 compact/planning/subcycle/stage report/final 的实际作用
 2. 子讨论组拆分是否合理，是否真正生成不同视角，而不是四个角色一路走到底
 3. 角色互动分析：谁推动概念澄清，谁保持反对，谁提出关键约束，谁被边缘化
 4. 论证质量分析：事实使用、价值冲突、程序边界、外部依赖、抽象层次
 5. 共识形成路径：哪些让步是真共识，哪些只是阶段性妥协，哪些不该被写成结果
 6. 讨论流程的客观问题：重复、遗漏、偏见、过度生成、证据不足、权限混淆风险
-7. 对议案讨论引擎的测试价值：上下文保持、角色一致性、并行轮次、第四轮自总结、compact 质量
+7. 对议案讨论引擎的测试价值：上下文保持、角色一致性、并行三轮压力测试、compact 质量
 8. 可量化指标引用：调用数、tokens、reasoning tokens、prompt cache hit/miss、错误数、长度截断、产物完整性；如证据包缺少 metrics，明确说明
 9. 改进建议：下一版工作流、prompt、监控和产物结构怎么优化
 
@@ -466,7 +472,7 @@ def _package_index(package_manifest: dict[str, Any]) -> str:
     lines = [
         "# Deep Summary 综合目录",
         "",
-        "这个目录由最长上下文证据包生成，用于把五回合后的讨论产物拆成三类可读文档。",
+        "这个目录由最长上下文证据包生成，用于把三循环后的讨论产物拆成三类可读文档。",
         "",
         "## 文档",
         "",
@@ -491,7 +497,7 @@ def write_deep_summary_package(
     raw_text: str,
     *,
     package_dir: str | Path = DEFAULT_PACKAGE_DIR,
-    raw_output: str | Path = "deep_final_summary.md",
+    raw_output: str | Path = "final summary/deep_final_summary.md",
 ) -> dict[str, Any]:
     out_dir = run_dir / package_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -535,7 +541,7 @@ def write_deep_summary_package(
     return manifest
 
 
-def write_context_bundle(run_dir: Path, bundle: ContextBundle, *, subdir: str = "deep_summary") -> tuple[Path, Path]:
+def write_context_bundle(run_dir: Path, bundle: ContextBundle, *, subdir: str = "final summary/deep_summary") -> tuple[Path, Path]:
     out_dir = run_dir / subdir
     bundle_path = out_dir / "context_bundle.md"
     manifest_path = out_dir / "manifest.json"
@@ -545,7 +551,7 @@ def write_context_bundle(run_dir: Path, bundle: ContextBundle, *, subdir: str = 
 
 
 def append_deep_summary_transcript(run_dir: Path, request_meta: dict[str, Any], result: Any) -> None:
-    path = run_dir / "deep_summary" / "transcript.jsonl"
+    path = final_summary_root(run_dir) / "deep_summary" / "transcript.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     row = {
         "call_type": "deep_final_summary",

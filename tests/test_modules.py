@@ -52,7 +52,7 @@ def fake_result(content: str = "ok", total_tokens: int = 10) -> ChatResult:
 
 
 class ApiModuleTests(unittest.TestCase):
-    def test_payload_records_max_and_high_thinking(self) -> None:
+    def test_payload_records_coordinator_thinking_and_role_nonthinking(self) -> None:
         coordinator = DeepSeekClient(
             "key",
             ModelSettings("deepseek-v4-pro", "https://api.deepseek.com", 8192, thinking_enabled=True, reasoning_effort="max"),
@@ -74,6 +74,7 @@ class ApiModuleTests(unittest.TestCase):
             "high",
         )
         role_payload = role.build_payload([{"role": "user", "content": "x"}])
+        self.assertEqual(role_payload["model"], "deepseek-v4-pro")
         self.assertEqual(role_payload["thinking"], {"type": "disabled"})
         self.assertNotIn("reasoning_effort", role_payload)
         self.assertEqual(role_payload["max_tokens"], 6144)
@@ -218,7 +219,7 @@ class RolesModuleTests(unittest.TestCase):
                     preview_chars=20,
                     call_role=call_role,
                 )
-            self.assertEqual(len(calls), 16)
+            self.assertEqual(len(calls), 12)
             by_round: dict[int, list[int]] = {}
             for call in calls:
                 context_meta = call["context_meta"] or {}
@@ -227,7 +228,7 @@ class RolesModuleTests(unittest.TestCase):
             self.assertEqual(sorted(by_round[1]), [0, 0, 0, 0])
             self.assertEqual(sorted(by_round[2]), [4, 4, 4, 4])
             self.assertEqual(sorted(by_round[3]), [8, 8, 8, 8])
-            self.assertEqual(sorted(by_round[4]), [12, 12, 12, 12])
+            self.assertNotIn(4, by_round)
             self.assertIn("原始议题 + compact 历史", str(calls[0]["system"]))
             self.assertIn("当前 compact", str(calls[0]["system"]))
             self.assertIn("recent", str(calls[0]["system"]))
@@ -236,23 +237,18 @@ class RolesModuleTests(unittest.TestCase):
                 self.assertNotIn("原始议题 + compact 历史", str(call["user_text"]))
                 self.assertNotIn("本轮此前角色发言", str(call["user_text"]))
                 self.assertNotIn("最近历史摘要", str(call["user_text"]))
-            self.assertEqual(len(parts), 16)
+            self.assertEqual(len(parts), 12)
             summary_prompts = [
                 call for call in calls if (call["context_meta"] or {}).get("summary_round")
             ]
-            self.assertEqual(len(summary_prompts), 4)
-            self.assertIn("第 4 轮总结", str(summary_prompts[0]["user_text"]))
-            for round_index in range(1, 5):
+            self.assertEqual(len(summary_prompts), 0)
+            for round_index in range(1, 4):
                 round_path = Path(tmp) / "subcycle_01_a" / f"discussion_round_{round_index:02d}.jsonl"
                 rows = [json.loads(line) for line in round_path.read_text(encoding="utf-8").splitlines()]
                 self.assertEqual(len(rows), 4)
                 self.assertIn("conversation", rows[0])
                 self.assertEqual([row["slot"] for row in rows], ["A", "B", "C", "D"])
-            summary_rows = [
-                json.loads(line)
-                for line in (Path(tmp) / "subcycle_01_a" / "discussion_round_04.jsonl").read_text(encoding="utf-8").splitlines()
-            ]
-            self.assertTrue(all(row["conversation"]["summary_round"] for row in summary_rows))
+            self.assertFalse((Path(tmp) / "subcycle_01_a" / "discussion_round_04.jsonl").exists())
 
     def test_role_group_resume_reuses_existing_round_records(self) -> None:
         calls: list[str] = []
@@ -329,45 +325,49 @@ class ReportsModuleTests(unittest.TestCase):
 
 
 class DeepSummaryModuleTests(unittest.TestCase):
-    def test_collects_run_artifacts_and_role_summary_rounds(self) -> None:
+    def test_collects_run_artifacts_and_final_pressure_rounds(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
-            (run / "input.md").write_text("原始议题", encoding="utf-8")
-            (run / "run_config.json").write_text(
+            (run / "framework").mkdir()
+            (run / "framework" / "input.md").write_text("原始议题", encoding="utf-8")
+            (run / "framework" / "run_config.json").write_text(
                 json.dumps({"scenario": {"loops": 1}}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            loop = run / "loop_01"
+            compact_loop = run / "compact and planning" / "loop_01"
+            loop = run / "process" / "loop_01"
             subcycle = loop / "subcycle_01_a"
             subcycle.mkdir(parents=True)
-            (loop / "compact.md").write_text("compact", encoding="utf-8")
+            compact_loop.mkdir(parents=True)
+            (compact_loop / "compact.md").write_text("compact", encoding="utf-8")
             (loop / "stage_report.md").write_text("stage", encoding="utf-8")
-            (loop / "discussion_plan.md").write_text("plan", encoding="utf-8")
+            (compact_loop / "discussion_plan.md").write_text("plan", encoding="utf-8")
             rows = [
-                {"slot": "A", "role_name": "学生", "group_title": "组", "content": "A总结"},
-                {"slot": "B", "role_name": "教师", "group_title": "组", "content": "B总结"},
+                {"slot": "A", "role_name": "学生", "group_title": "组", "content": "A压测"},
+                {"slot": "B", "role_name": "教师", "group_title": "组", "content": "B压测"},
             ]
-            (subcycle / "discussion_round_04.jsonl").write_text(
+            (subcycle / "discussion_round_03.jsonl").write_text(
                 "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
                 encoding="utf-8",
             )
 
             artifacts = collect_summary_artifacts(run)
             paths = [artifact.path for artifact in artifacts]
-            self.assertIn("loop_01/subcycle_01_a/discussion_round_04.jsonl", paths)
+            self.assertIn("process/loop_01/subcycle_01_a/discussion_round_03.jsonl", paths)
             rendered = next(
                 artifact.content
                 for artifact in artifacts
-                if artifact.path == "loop_01/subcycle_01_a/discussion_round_04.jsonl"
+                if artifact.path == "process/loop_01/subcycle_01_a/discussion_round_03.jsonl"
             )
-            self.assertIn("A总结", rendered)
-            self.assertIn("B总结", rendered)
+            self.assertIn("A压测", rendered)
+            self.assertIn("B压测", rendered)
 
     def test_context_bundle_records_budget_and_messages_request_deep_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
-            (run / "input.md").write_text("原始议题" * 200, encoding="utf-8")
-            (run / "run_config.json").write_text(
+            (run / "framework").mkdir()
+            (run / "framework" / "input.md").write_text("原始议题" * 200, encoding="utf-8")
+            (run / "framework" / "run_config.json").write_text(
                 json.dumps({"scenario": {"loops": 0}}, ensure_ascii=False),
                 encoding="utf-8",
             )
@@ -405,11 +405,12 @@ class DeepSummaryModuleTests(unittest.TestCase):
             sections = split_deep_summary_package(raw)
             self.assertEqual(set(sections), {"discussion_result", "process_analysis", "synthesized_document"})
             manifest = write_deep_summary_package(run, raw)
-            package = run / "deep_summary" / "final_package"
+            package = run / "final summary" / "deep_summary" / "final_package"
             self.assertTrue((package / "index.md").exists())
             self.assertTrue((package / "01_discussion_result.md").exists())
             self.assertTrue((package / "02_process_analysis.md").exists())
             self.assertTrue((package / "03_synthesized_document.md").exists())
+            self.assertTrue((run / "final summary" / "deep_final_summary.md").exists())
             self.assertTrue(manifest["complete_sections"])
             self.assertIn("结果正文", (package / "01_discussion_result.md").read_text(encoding="utf-8"))
 

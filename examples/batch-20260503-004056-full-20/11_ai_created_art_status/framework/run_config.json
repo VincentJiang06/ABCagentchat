@@ -1,0 +1,36 @@
+{
+  "scenario": {
+    "path": "/Users/vincent/playground/ABCagentchat/scenarios/11_ai_created_art_status.md",
+    "title": "AI 创作内容是否算作艺术议案",
+    "requested_loops": 3,
+    "loops": 3,
+    "domain": "culture_ai_governance",
+    "source_refs": [],
+    "primary_tests": [
+      "definition_dispute",
+      "human_intent",
+      "authorship_boundary",
+      "market_and_institution_rules"
+    ]
+  },
+  "options": {
+    "output_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/11_ai_created_art_status",
+    "keep_runs": 0,
+    "dry_run": false,
+    "timeout": 600,
+    "recent_context_chars": 32000,
+    "planning_context_chars": 16000,
+    "preview_chars": 260,
+    "max_loops": 3,
+    "max_subcycles": 3,
+    "rounds_per_subcycle": 3,
+    "role_summary_round": false,
+    "coordinator_max_tokens": 65536,
+    "planning_max_tokens": 8192,
+    "role_max_tokens": 6144,
+    "stage_max_tokens": 65536,
+    "final_max_tokens": 65536,
+    "enable_monitor": true
+  },
+  "dry_run": false
+}

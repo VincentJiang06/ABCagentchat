@@ -18,10 +18,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=600, help="Per-request timeout in seconds.")
     parser.add_argument("--dry-run", action="store_true", help="Run without network/API calls.")
     parser.add_argument("--recent-context-chars", type=int, default=32000)
-    parser.add_argument("--max-loops", type=int, default=5, help="Hard cap for discussion loops.")
+    parser.add_argument("--max-loops", type=int, default=3, help="Hard cap for discussion loops.")
     parser.add_argument("--max-subcycles", type=int, default=3, help="Maximum discussion subcycles per loop.")
     parser.add_argument("--rounds-per-subcycle", type=int, default=3, help="Role speaking rounds per subcycle.")
-    parser.add_argument("--no-summary-round", action="store_true", help="Disable the fourth parallel role summary round.")
+    parser.add_argument("--summary-round", action="store_true", help="Enable the optional fourth parallel role summary round.")
+    parser.add_argument("--no-summary-round", action="store_true", help="Compatibility flag; summary rounds are disabled by default.")
     parser.add_argument("--enable-monitor", action="store_true", help="Write monitor.html/status.json. Disabled by default.")
     parser.add_argument(
         "--profile",
@@ -30,6 +31,8 @@ def parse_args() -> argparse.Namespace:
         help="quality keeps large token ceilings; long-run uses smaller ceilings for many-loop runs.",
     )
     parser.add_argument("--coordinator-max-tokens", type=int)
+    parser.add_argument("--planning-max-tokens", type=int, default=8192)
+    parser.add_argument("--planning-context-chars", type=int, default=16000)
     parser.add_argument("--role-max-tokens", type=int)
     parser.add_argument("--stage-max-tokens", type=int)
     parser.add_argument("--final-max-tokens", type=int)
@@ -66,11 +69,13 @@ def main() -> int:
         dry_run=args.dry_run,
         timeout=args.timeout,
         recent_context_chars=args.recent_context_chars,
+        planning_context_chars=args.planning_context_chars,
         max_loops=args.max_loops,
         max_subcycles=args.max_subcycles,
         rounds_per_subcycle=args.rounds_per_subcycle,
-        role_summary_round=not args.no_summary_round,
+        role_summary_round=bool(args.summary_round and not args.no_summary_round),
         coordinator_max_tokens=args.coordinator_max_tokens or profile_defaults["coordinator_max_tokens"],
+        planning_max_tokens=args.planning_max_tokens,
         role_max_tokens=args.role_max_tokens or profile_defaults["role_max_tokens"],
         stage_max_tokens=args.stage_max_tokens or profile_defaults["stage_max_tokens"],
         final_max_tokens=args.final_max_tokens or profile_defaults["final_max_tokens"],

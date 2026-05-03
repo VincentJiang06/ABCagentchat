@@ -1,0 +1,41 @@
+{
+  "scenario": {
+    "path": "/Users/vincent/playground/ABCagentchat/scenarios/07_urban_underground_space.md",
+    "title": "城市地下空间与公共通道使用议案",
+    "requested_loops": 3,
+    "loops": 3,
+    "domain": "urban_planning_hearing",
+    "source_refs": [
+      {
+        "title": "陈华元代表：加快城市地下空间管理立法",
+        "url": "https://www.gov.cn/xinwen/2016-03/10/content_5051714.htm"
+      }
+    ],
+    "primary_tests": [
+      "multi_department_coordination",
+      "public_interest_boundary",
+      "ownership_ambiguity",
+      "safety_risk"
+    ]
+  },
+  "options": {
+    "output_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/07_urban_underground_space",
+    "keep_runs": 0,
+    "dry_run": false,
+    "timeout": 600,
+    "recent_context_chars": 32000,
+    "planning_context_chars": 16000,
+    "preview_chars": 260,
+    "max_loops": 3,
+    "max_subcycles": 3,
+    "rounds_per_subcycle": 3,
+    "role_summary_round": false,
+    "coordinator_max_tokens": 65536,
+    "planning_max_tokens": 8192,
+    "role_max_tokens": 6144,
+    "stage_max_tokens": 65536,
+    "final_max_tokens": 65536,
+    "enable_monitor": true
+  },
+  "dry_run": false
+}

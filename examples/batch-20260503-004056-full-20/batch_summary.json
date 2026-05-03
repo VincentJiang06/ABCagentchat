@@ -1,0 +1,508 @@
+{
+  "batch_id": "batch-20260503-004056-full-20",
+  "source_run_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20",
+  "example_scope": "19 completed cases only; raw transcripts, run logs, monitor pages, and compact backgrounds are intentionally excluded.",
+  "completed_cases": 19,
+  "stopped_cases": [
+    "20_online_social_relationships"
+  ],
+  "total_calls": 1101,
+  "total_tokens": 67007874,
+  "audit_note": "All 19 completed cases passed blocking audit checks. Warnings are length-stop and empty-preview audit warnings, not run failures.",
+  "cases": [
+    {
+      "index": 1,
+      "slug": "01_ebike_charging_governance",
+      "title": "电动自行车社区充电收费与安全治理议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 3034033,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "01_ebike_charging_governance/final_summary/final_summary.md",
+      "full_final_summary": "01_ebike_charging_governance/final_summary/00_full_final_summary.md",
+      "process_analysis": "01_ebike_charging_governance/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "01_ebike_charging_governance/process/loop_01_stage_report.md",
+        "01_ebike_charging_governance/process/loop_02_stage_report.md",
+        "01_ebike_charging_governance/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2741597,
+        "completion": 292436,
+        "reasoning": 44237,
+        "total": 3034033
+      }
+    },
+    {
+      "index": 2,
+      "slug": "02_old_community_elevator",
+      "title": "老旧小区加装电梯与低楼层补偿议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2830753,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "02_old_community_elevator/final_summary/final_summary.md",
+      "full_final_summary": "02_old_community_elevator/final_summary/00_full_final_summary.md",
+      "process_analysis": "02_old_community_elevator/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "02_old_community_elevator/process/loop_01_stage_report.md",
+        "02_old_community_elevator/process/loop_02_stage_report.md",
+        "02_old_community_elevator/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2524033,
+        "completion": 306720,
+        "reasoning": 39926,
+        "total": 2830753
+      }
+    },
+    {
+      "index": 3,
+      "slug": "03_complete_community_priorities",
+      "title": "完整社区建设项目排序议案",
+      "status": "completed_with_warnings",
+      "call_count": 60,
+      "total_tokens": 3852209,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "03_complete_community_priorities/final_summary/final_summary.md",
+      "full_final_summary": "03_complete_community_priorities/final_summary/00_full_final_summary.md",
+      "process_analysis": "03_complete_community_priorities/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "03_complete_community_priorities/process/loop_01_stage_report.md",
+        "03_complete_community_priorities/process/loop_02_stage_report.md",
+        "03_complete_community_priorities/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 3489907,
+        "completion": 362302,
+        "reasoning": 39048,
+        "total": 3852209
+      }
+    },
+    {
+      "index": 4,
+      "slug": "04_platform_worker_rights",
+      "title": "新就业形态骑手权益协商议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2906459,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "04_platform_worker_rights/final_summary/final_summary.md",
+      "full_final_summary": "04_platform_worker_rights/final_summary/00_full_final_summary.md",
+      "process_analysis": "04_platform_worker_rights/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "04_platform_worker_rights/process/loop_01_stage_report.md",
+        "04_platform_worker_rights/process/loop_02_stage_report.md",
+        "04_platform_worker_rights/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2588276,
+        "completion": 318183,
+        "reasoning": 47792,
+        "total": 2906459
+      }
+    },
+    {
+      "index": 5,
+      "slug": "05_community_eldercare_station",
+      "title": "社区养老服务站资源配置议案",
+      "status": "completed_with_warnings",
+      "call_count": 83,
+      "total_tokens": 6046302,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "05_community_eldercare_station/final_summary/final_summary.md",
+      "full_final_summary": "05_community_eldercare_station/final_summary/00_full_final_summary.md",
+      "process_analysis": "05_community_eldercare_station/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "05_community_eldercare_station/process/loop_01_stage_report.md",
+        "05_community_eldercare_station/process/loop_02_stage_report.md",
+        "05_community_eldercare_station/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 5598754,
+        "completion": 447548,
+        "reasoning": 22338,
+        "total": 6046302
+      }
+    },
+    {
+      "index": 6,
+      "slug": "06_primary_health_chronic_disease",
+      "title": "基层慢病筛查与社区健康服务议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2721919,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "06_primary_health_chronic_disease/final_summary/final_summary.md",
+      "full_final_summary": "06_primary_health_chronic_disease/final_summary/00_full_final_summary.md",
+      "process_analysis": "06_primary_health_chronic_disease/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "06_primary_health_chronic_disease/process/loop_01_stage_report.md",
+        "06_primary_health_chronic_disease/process/loop_02_stage_report.md",
+        "06_primary_health_chronic_disease/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2470972,
+        "completion": 250947,
+        "reasoning": 38425,
+        "total": 2721919
+      }
+    },
+    {
+      "index": 7,
+      "slug": "07_urban_underground_space",
+      "title": "城市地下空间与公共通道使用议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2916096,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "07_urban_underground_space/final_summary/final_summary.md",
+      "full_final_summary": "07_urban_underground_space/final_summary/00_full_final_summary.md",
+      "process_analysis": "07_urban_underground_space/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "07_urban_underground_space/process/loop_01_stage_report.md",
+        "07_urban_underground_space/process/loop_02_stage_report.md",
+        "07_urban_underground_space/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2617404,
+        "completion": 298692,
+        "reasoning": 36970,
+        "total": 2916096
+      }
+    },
+    {
+      "index": 8,
+      "slug": "08_embedded_community_services",
+      "title": "社区嵌入式服务设施运营议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2929819,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "08_embedded_community_services/final_summary/final_summary.md",
+      "full_final_summary": "08_embedded_community_services/final_summary/00_full_final_summary.md",
+      "process_analysis": "08_embedded_community_services/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "08_embedded_community_services/process/loop_01_stage_report.md",
+        "08_embedded_community_services/process/loop_02_stage_report.md",
+        "08_embedded_community_services/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2619989,
+        "completion": 309830,
+        "reasoning": 48491,
+        "total": 2929819
+      }
+    },
+    {
+      "index": 9,
+      "slug": "09_university_ai_academic_integrity",
+      "title": "大学 AI 学术诚信与学生权益建议议案",
+      "status": "completed_with_warnings",
+      "call_count": 60,
+      "total_tokens": 3302055,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "09_university_ai_academic_integrity/final_summary/final_summary.md",
+      "full_final_summary": "09_university_ai_academic_integrity/final_summary/00_full_final_summary.md",
+      "process_analysis": "09_university_ai_academic_integrity/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "09_university_ai_academic_integrity/process/loop_01_stage_report.md",
+        "09_university_ai_academic_integrity/process/loop_02_stage_report.md",
+        "09_university_ai_academic_integrity/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2943079,
+        "completion": 358976,
+        "reasoning": 45549,
+        "total": 3302055
+      }
+    },
+    {
+      "index": 10,
+      "slug": "10_university_evening_self_study",
+      "title": "大学是否应该有晚自习议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2951724,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "10_university_evening_self_study/final_summary/final_summary.md",
+      "full_final_summary": "10_university_evening_self_study/final_summary/00_full_final_summary.md",
+      "process_analysis": "10_university_evening_self_study/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "10_university_evening_self_study/process/loop_01_stage_report.md",
+        "10_university_evening_self_study/process/loop_02_stage_report.md",
+        "10_university_evening_self_study/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2640727,
+        "completion": 310997,
+        "reasoning": 38612,
+        "total": 2951724
+      }
+    },
+    {
+      "index": 11,
+      "slug": "11_ai_created_art_status",
+      "title": "AI 创作内容是否算作艺术议案",
+      "status": "completed_with_warnings",
+      "call_count": 61,
+      "total_tokens": 4316020,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "11_ai_created_art_status/final_summary/final_summary.md",
+      "full_final_summary": "11_ai_created_art_status/final_summary/00_full_final_summary.md",
+      "process_analysis": "11_ai_created_art_status/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "11_ai_created_art_status/process/loop_01_stage_report.md",
+        "11_ai_created_art_status/process/loop_02_stage_report.md",
+        "11_ai_created_art_status/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 3949761,
+        "completion": 366259,
+        "reasoning": 37158,
+        "total": 4316020
+      }
+    },
+    {
+      "index": 12,
+      "slug": "12_ai_regulation_next_steps",
+      "title": "AI 应该如何进一步监管议案",
+      "status": "completed_with_warnings",
+      "call_count": 60,
+      "total_tokens": 4162543,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "12_ai_regulation_next_steps/final_summary/final_summary.md",
+      "full_final_summary": "12_ai_regulation_next_steps/final_summary/00_full_final_summary.md",
+      "process_analysis": "12_ai_regulation_next_steps/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "12_ai_regulation_next_steps/process/loop_01_stage_report.md",
+        "12_ai_regulation_next_steps/process/loop_02_stage_report.md",
+        "12_ai_regulation_next_steps/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 3810163,
+        "completion": 352380,
+        "reasoning": 42836,
+        "total": 4162543
+      }
+    },
+    {
+      "index": 13,
+      "slug": "13_ai_teen_education_use",
+      "title": "AI 是否应被用于青少年教育议案",
+      "status": "completed_with_warnings",
+      "call_count": 83,
+      "total_tokens": 5804391,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "13_ai_teen_education_use/final_summary/final_summary.md",
+      "full_final_summary": "13_ai_teen_education_use/final_summary/00_full_final_summary.md",
+      "process_analysis": "13_ai_teen_education_use/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "13_ai_teen_education_use/process/loop_01_stage_report.md",
+        "13_ai_teen_education_use/process/loop_02_stage_report.md",
+        "13_ai_teen_education_use/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 5386500,
+        "completion": 417891,
+        "reasoning": 26856,
+        "total": 5804391
+      }
+    },
+    {
+      "index": 14,
+      "slug": "14_sexual_content_social_harm",
+      "title": "色情内容与软色情是否对社会有害议案",
+      "status": "completed_with_warnings",
+      "call_count": 72,
+      "total_tokens": 3277607,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "14_sexual_content_social_harm/final_summary/final_summary.md",
+      "full_final_summary": "14_sexual_content_social_harm/final_summary/00_full_final_summary.md",
+      "process_analysis": "14_sexual_content_social_harm/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "14_sexual_content_social_harm/process/loop_01_stage_report.md",
+        "14_sexual_content_social_harm/process/loop_02_stage_report.md",
+        "14_sexual_content_social_harm/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2945827,
+        "completion": 331780,
+        "reasoning": 38844,
+        "total": 3277607
+      }
+    },
+    {
+      "index": 15,
+      "slug": "15_metaverse_real_world_impact",
+      "title": "元宇宙概念对现实社会冲击议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2675429,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "15_metaverse_real_world_impact/final_summary/final_summary.md",
+      "full_final_summary": "15_metaverse_real_world_impact/final_summary/00_full_final_summary.md",
+      "process_analysis": "15_metaverse_real_world_impact/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "15_metaverse_real_world_impact/process/loop_01_stage_report.md",
+        "15_metaverse_real_world_impact/process/loop_02_stage_report.md",
+        "15_metaverse_real_world_impact/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2384306,
+        "completion": 291123,
+        "reasoning": 47968,
+        "total": 2675429
+      }
+    },
+    {
+      "index": 16,
+      "slug": "16_ai_productivity_communism",
+      "title": "AI 生产力爆炸后是否可能达成共产主义社会议案",
+      "status": "completed_with_warnings",
+      "call_count": 49,
+      "total_tokens": 2739759,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "16_ai_productivity_communism/final_summary/final_summary.md",
+      "full_final_summary": "16_ai_productivity_communism/final_summary/00_full_final_summary.md",
+      "process_analysis": "16_ai_productivity_communism/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "16_ai_productivity_communism/process/loop_01_stage_report.md",
+        "16_ai_productivity_communism/process/loop_02_stage_report.md",
+        "16_ai_productivity_communism/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2472948,
+        "completion": 266811,
+        "reasoning": 43799,
+        "total": 2739759
+      }
+    },
+    {
+      "index": 17,
+      "slug": "17_new_confucianism_reasonableness",
+      "title": "新儒家理论是否具有合理性议案",
+      "status": "completed_with_warnings",
+      "call_count": 61,
+      "total_tokens": 3561250,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "17_new_confucianism_reasonableness/final_summary/final_summary.md",
+      "full_final_summary": "17_new_confucianism_reasonableness/final_summary/00_full_final_summary.md",
+      "process_analysis": "17_new_confucianism_reasonableness/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "17_new_confucianism_reasonableness/process/loop_01_stage_report.md",
+        "17_new_confucianism_reasonableness/process/loop_02_stage_report.md",
+        "17_new_confucianism_reasonableness/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 3209501,
+        "completion": 351749,
+        "reasoning": 43881,
+        "total": 3561250
+      }
+    },
+    {
+      "index": 18,
+      "slug": "18_china_next_20_years_expansion",
+      "title": "中国未来二十年影响力扩张路径议案",
+      "status": "completed_with_warnings",
+      "call_count": 60,
+      "total_tokens": 3825436,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "18_china_next_20_years_expansion/final_summary/final_summary.md",
+      "full_final_summary": "18_china_next_20_years_expansion/final_summary/00_full_final_summary.md",
+      "process_analysis": "18_china_next_20_years_expansion/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "18_china_next_20_years_expansion/process/loop_01_stage_report.md",
+        "18_china_next_20_years_expansion/process/loop_02_stage_report.md",
+        "18_china_next_20_years_expansion/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 3465461,
+        "completion": 359975,
+        "reasoning": 42560,
+        "total": 3825436
+      }
+    },
+    {
+      "index": 19,
+      "slug": "19_betel_nut_drug_classification",
+      "title": "槟榔是否应被视为毒品或成瘾性风险品议案",
+      "status": "completed_with_warnings",
+      "call_count": 60,
+      "total_tokens": 3154070,
+      "warnings": [
+        "has_no_length_stops",
+        "has_no_empty_previews"
+      ],
+      "final_summary": "19_betel_nut_drug_classification/final_summary/final_summary.md",
+      "full_final_summary": "19_betel_nut_drug_classification/final_summary/00_full_final_summary.md",
+      "process_analysis": "19_betel_nut_drug_classification/final_summary/02_process_analysis.md",
+      "stage_reports": [
+        "19_betel_nut_drug_classification/process/loop_01_stage_report.md",
+        "19_betel_nut_drug_classification/process/loop_02_stage_report.md",
+        "19_betel_nut_drug_classification/process/loop_03_stage_report.md"
+      ],
+      "tokens": {
+        "prompt": 2844142,
+        "completion": 309928,
+        "reasoning": 35725,
+        "total": 3154070
+      }
+    }
+  ]
+}

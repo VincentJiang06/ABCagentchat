@@ -71,7 +71,7 @@ def run_discussion_group(
     preview_chars: int,
     call_role: RoleCall,
     resume_existing: bool = False,
-    include_summary_round: bool = True,
+    include_summary_round: bool = False,
 ) -> list[str]:
     group_id = str(group["group_id"])
     group_title = str(group["title"])

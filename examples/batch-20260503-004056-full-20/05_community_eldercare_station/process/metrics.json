@@ -1,0 +1,61 @@
+{
+  "run_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/05_community_eldercare_station",
+  "loops": 3,
+  "expected_calls": 83,
+  "checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true,
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "blocking_checks": {
+    "has_expected_files": true,
+    "has_no_errors": true,
+    "call_count_matches": true,
+    "all_rounds_have_four_roles": true
+  },
+  "warning_checks": {
+    "has_no_length_stops": false,
+    "has_no_empty_previews": false
+  },
+  "passed": true,
+  "strict_passed": false,
+  "warnings": [
+    "has_no_length_stops",
+    "has_no_empty_previews"
+  ],
+  "warning_count": 2,
+  "missing_files": [],
+  "failed_rounds": {},
+  "error_count": 0,
+  "transcript": {
+    "call_count": 83,
+    "by_type": {
+      "compact": 3,
+      "planning": 3,
+      "role_B": 18,
+      "role_C": 18,
+      "role_D": 18,
+      "role_A": 18,
+      "stage_report": 3,
+      "planning_repair": 1,
+      "final_summary": 1
+    },
+    "by_client": {
+      "coordinator": 11,
+      "B": 18,
+      "C": 18,
+      "D": 18,
+      "A": 18
+    },
+    "prompt_tokens": 5598754,
+    "completion_tokens": 447548,
+    "reasoning_tokens": 22338,
+    "total_tokens": 6046302,
+    "elapsed_seconds": 14492.153,
+    "length_stops": 1,
+    "empty_or_missing_previews": 1
+  }
+}

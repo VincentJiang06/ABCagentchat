@@ -1,0 +1,36 @@
+{
+  "scenario": {
+    "path": "/Users/vincent/playground/ABCagentchat/scenarios/19_betel_nut_drug_classification.md",
+    "title": "槟榔是否应被视为毒品或成瘾性风险品议案",
+    "requested_loops": 3,
+    "loops": 3,
+    "domain": "public_health_regulation",
+    "source_refs": [],
+    "primary_tests": [
+      "classification_boundary",
+      "public_health_evidence",
+      "livelihood_tradeoff",
+      "labeling_and_restriction"
+    ]
+  },
+  "options": {
+    "output_dir": "/Users/vincent/playground/ABCagentchat/runs/nightly-all-tests/batch-20260503-004056-full-20/19_betel_nut_drug_classification",
+    "keep_runs": 0,
+    "dry_run": false,
+    "timeout": 600,
+    "recent_context_chars": 32000,
+    "planning_context_chars": 16000,
+    "preview_chars": 260,
+    "max_loops": 3,
+    "max_subcycles": 3,
+    "rounds_per_subcycle": 3,
+    "role_summary_round": false,
+    "coordinator_max_tokens": 65536,
+    "planning_max_tokens": 8192,
+    "role_max_tokens": 6144,
+    "stage_max_tokens": 65536,
+    "final_max_tokens": 65536,
+    "enable_monitor": true
+  },
+  "dry_run": false
+}

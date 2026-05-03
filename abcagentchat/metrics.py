@@ -5,30 +5,38 @@ from pathlib import Path
 from typing import Any
 
 from .background import DEFAULT_FULL_RECENT_COMPACTS
+from .layout import compact_planning_loop_dir, framework_root, process_loop_dir, process_root
 
 
-EXPECTED_LOOP_FILES = [
+EXPECTED_COMPACT_PLANNING_LOOP_FILES = [
     "background_context.md",
     "compact.md",
     "discussion_plan.raw.json",
     "discussion_plan.json",
     "discussion_plan.md",
+]
+
+EXPECTED_PROCESS_LOOP_FILES = [
     "stage_report.md",
 ]
 
 EXPECTED_FINAL_FILES = [
-    "final_summary.md",
-    "run_index.md",
-    "final/README.md",
-    "final/manifest.json",
-    "final/00_full_final_summary.md",
-    "final/01_discussion_result.md",
-    "final/02_process_analysis.md",
-    "final/03_synthesized_document.md",
-    "final/04_evidence_and_next_steps.md",
-    "final/final_summary.md",
-    "final/process_timeline.md",
-    "final/output_tree.md",
+    "final summary/README.md",
+    "final summary/manifest.json",
+    "final summary/00_full_final_summary.md",
+    "final summary/01_discussion_result.md",
+    "final summary/02_process_analysis.md",
+    "final summary/03_synthesized_document.md",
+    "final summary/04_evidence_and_next_steps.md",
+    "final summary/final_summary.md",
+    "final summary/process_timeline.md",
+    "final summary/output_tree.md",
+]
+
+EXPECTED_FRAMEWORK_FILES = [
+    "framework/input.md",
+    "framework/run_config.json",
+    "framework/run_index.md",
 ]
 
 
@@ -65,14 +73,14 @@ def summarize_transcript(transcript_path: Path) -> dict[str, Any]:
 
 
 def audit_run_dir(run_dir: Path) -> dict[str, Any]:
-    run_config_path = run_dir / "run_config.json"
+    run_config_path = framework_root(run_dir) / "run_config.json"
     run_config = json.loads(run_config_path.read_text(encoding="utf-8")) if run_config_path.exists() else {}
     loops = int((run_config.get("scenario") or {}).get("loops") or 0)
     options = run_config.get("options") or {}
     rounds_per_subcycle = int(options.get("rounds_per_subcycle") or 1)
     role_summary_round = bool(options.get("role_summary_round", True))
     role_rounds_per_subcycle = rounds_per_subcycle + (1 if role_summary_round else 0)
-    transcript = summarize_transcript(run_dir / "transcript.jsonl")
+    transcript = summarize_transcript(process_root(run_dir) / "transcript.jsonl")
     expected_calls = 1 if loops else None
     by_type = transcript.get("by_type") or {}
     optional_repair_calls = int(by_type.get("planning_repair") or 0)
@@ -81,18 +89,23 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
         expected_calls += optional_repair_calls + expected_compact_archive_summary_calls
 
     missing_files: list[str] = []
-    for name in ["input.md", "run_config.json", "transcript.jsonl", *EXPECTED_FINAL_FILES]:
+    for name in [*EXPECTED_FRAMEWORK_FILES, "process/transcript.jsonl", *EXPECTED_FINAL_FILES]:
         if not (run_dir / name).exists():
             missing_files.append(name)
 
     round_line_counts: dict[str, int] = {}
     for index in range(1, loops + 1):
-        loop_dir = run_dir / f"loop_{index:02d}"
-        for name in EXPECTED_LOOP_FILES:
-            path = loop_dir / name
+        planning_loop_dir = compact_planning_loop_dir(run_dir, index)
+        process_loop = process_loop_dir(run_dir, index)
+        for name in EXPECTED_COMPACT_PLANNING_LOOP_FILES:
+            path = planning_loop_dir / name
             if not path.exists():
                 missing_files.append(str(path.relative_to(run_dir)))
-        plan_path = loop_dir / "discussion_plan.json"
+        for name in EXPECTED_PROCESS_LOOP_FILES:
+            path = process_loop / name
+            if not path.exists():
+                missing_files.append(str(path.relative_to(run_dir)))
+        plan_path = planning_loop_dir / "discussion_plan.json"
         groups = []
         if plan_path.exists():
             groups = (json.loads(plan_path.read_text(encoding="utf-8")).get("groups") or [])
@@ -100,9 +113,9 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
             expected_calls += 3 + len(groups) * role_rounds_per_subcycle * 4
         for subcycle_index, group in enumerate(groups, start=1):
             group_id = str(group.get("group_id") or subcycle_index)
-            subcycle_dirs = sorted(loop_dir.glob(f"subcycle_{subcycle_index:02d}_*"))
+            subcycle_dirs = sorted(process_loop.glob(f"subcycle_{subcycle_index:02d}_*"))
             if not subcycle_dirs:
-                missing_files.append(f"loop_{index:02d}/subcycle_{subcycle_index:02d}_{group_id}")
+                missing_files.append(f"process/loop_{index:02d}/subcycle_{subcycle_index:02d}_{group_id}")
                 continue
             subcycle_dir = subcycle_dirs[0]
             for round_index in range(1, role_rounds_per_subcycle + 1):
@@ -115,7 +128,7 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
     failed_rounds = {
         path: count for path, count in round_line_counts.items() if count != 4
     }
-    errors_path = run_dir / "errors.jsonl"
+    errors_path = process_root(run_dir) / "errors.jsonl"
     errors = load_jsonl(errors_path)
     checks = {
         "has_expected_files": not missing_files,
@@ -125,12 +138,30 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
         "has_no_length_stops": transcript["length_stops"] == 0,
         "has_no_empty_previews": transcript["empty_or_missing_previews"] == 0,
     }
+    blocking_check_names = [
+        "has_expected_files",
+        "has_no_errors",
+        "call_count_matches",
+        "all_rounds_have_four_roles",
+    ]
+    warning_check_names = [
+        "has_no_length_stops",
+        "has_no_empty_previews",
+    ]
+    blocking_checks = {name: checks[name] for name in blocking_check_names}
+    warning_checks = {name: checks[name] for name in warning_check_names}
+    warnings = [name for name, passed in warning_checks.items() if not passed]
     return {
         "run_dir": str(run_dir),
         "loops": loops,
         "expected_calls": expected_calls,
         "checks": checks,
-        "passed": all(checks.values()),
+        "blocking_checks": blocking_checks,
+        "warning_checks": warning_checks,
+        "passed": all(blocking_checks.values()),
+        "strict_passed": all(checks.values()),
+        "warnings": warnings,
+        "warning_count": len(warnings),
         "missing_files": missing_files,
         "failed_rounds": failed_rounds,
         "error_count": len(errors),
@@ -140,5 +171,7 @@ def audit_run_dir(run_dir: Path) -> dict[str, Any]:
 
 def write_metrics(run_dir: Path) -> dict[str, Any]:
     metrics = audit_run_dir(run_dir)
-    (run_dir / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path = process_root(run_dir) / "metrics.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return metrics

@@ -1,6 +1,6 @@
 ---
 title: 线上社交是否毁灭现实人际关系议案
-loops: 5
+loops: 3
 domain: digital_society_relationships
 source_refs: []
 primary_tests:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_SCENARIO_LOOPS = 5
+DEFAULT_SCENARIO_LOOPS = 3
 
 
 @dataclass(frozen=True)

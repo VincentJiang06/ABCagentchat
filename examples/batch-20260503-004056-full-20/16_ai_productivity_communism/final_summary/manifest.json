@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "key": "discussion_result",
+      "title": "对这个问题讨论出来的结果",
+      "filename": "01_discussion_result.md",
+      "chars": 19138,
+      "parsed": true
+    },
+    {
+      "key": "process_analysis",
+      "title": "对整个讨论流程的客观分析",
+      "filename": "02_process_analysis.md",
+      "chars": 69,
+      "parsed": false
+    },
+    {
+      "key": "synthesized_document",
+      "title": "原文的文档合成稿",
+      "filename": "03_synthesized_document.md",
+      "chars": 65,
+      "parsed": false
+    },
+    {
+      "key": "evidence_and_next_steps",
+      "title": "证据缺口与后续测试建议",
+      "filename": "04_evidence_and_next_steps.md",
+      "chars": 68,
+      "parsed": false
+    }
+  ]
+}
