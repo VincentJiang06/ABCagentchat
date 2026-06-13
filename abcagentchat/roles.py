@@ -72,6 +72,7 @@ def run_discussion_group(
     call_role: RoleCall,
     resume_existing: bool = False,
     include_summary_round: bool = False,
+    parallel_roles: bool = True,
 ) -> list[str]:
     group_id = str(group["group_id"])
     group_title = str(group["title"])
@@ -154,38 +155,51 @@ def run_discussion_group(
 
         completed: dict[str, tuple[str, ChatResult]] = {}
         if pending_calls:
+            mode = "parallel" if parallel_roles else "serial"
             print(
                 f"[loop {loop_index}] subcycle={subcycle_index} "
-                f"discussion_round={round_index} parallel_start={len(pending_calls)}",
+                f"discussion_round={round_index} {mode}_start={len(pending_calls)}",
                 flush=True,
             )
-            with ThreadPoolExecutor(max_workers=len(pending_calls)) as executor:
-                futures = {
-                    executor.submit(
-                        call_role,
-                        slot,
-                        f"role_{slot}",
-                        spec["messages"],
-                        role_max_tokens,
-                        spec["context_meta"],
-                    ): slot
-                    for slot, spec in pending_calls.items()
-                }
-                for future in as_completed(futures):
-                    slot = futures[future]
-                    content, result = future.result()
-                    completed[slot] = (content, result)
-                    spec = pending_calls[slot]
-                    print(
-                        f"  [{slot}] {spec['role_name']} "
-                        f"{result.elapsed_seconds:.1f}s tokens={result.total_tokens} "
-                        f"ctx_assistants={spec['context_meta']['assistant_context_messages']} "
-                        f"preview={content[:preview_chars].replace(chr(10), ' ')}",
-                        flush=True,
+
+            def _log_done(slot: str, content: str, result: ChatResult) -> None:
+                spec = pending_calls[slot]
+                print(
+                    f"  [{slot}] {spec['role_name']} "
+                    f"{result.elapsed_seconds:.1f}s tokens={result.total_tokens} "
+                    f"ctx_assistants={spec['context_meta']['assistant_context_messages']} "
+                    f"preview={content[:preview_chars].replace(chr(10), ' ')}",
+                    flush=True,
+                )
+
+            if parallel_roles:
+                with ThreadPoolExecutor(max_workers=len(pending_calls)) as executor:
+                    futures = {
+                        executor.submit(
+                            call_role, slot, f"role_{slot}",
+                            spec["messages"], role_max_tokens, spec["context_meta"],
+                        ): slot
+                        for slot, spec in pending_calls.items()
+                    }
+                    for future in as_completed(futures):
+                        slot = futures[future]
+                        content, result = future.result()
+                        completed[slot] = (content, result)
+                        _log_done(slot, content, result)
+            else:
+                # Local single-process backend: one model, one canvas at a time.
+                # Messages were snapshotted before the round, so serial order does
+                # not change what any role sees — the discussion stays fair.
+                for slot, spec in pending_calls.items():
+                    content, result = call_role(
+                        slot, f"role_{slot}",
+                        spec["messages"], role_max_tokens, spec["context_meta"],
                     )
+                    completed[slot] = (content, result)
+                    _log_done(slot, content, result)
             print(
                 f"[loop {loop_index}] subcycle={subcycle_index} "
-                f"discussion_round={round_index} parallel_complete={len(completed)}",
+                f"discussion_round={round_index} {mode}_complete={len(completed)}",
                 flush=True,
             )
 

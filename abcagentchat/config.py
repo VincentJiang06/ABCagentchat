@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .api import ModelSettings
+from .local_diffusion import LocalSettings
 
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -12,6 +13,18 @@ DEFAULT_COORDINATOR_MODEL = "deepseek-v4-pro"
 DEFAULT_ROLE_MODEL = "deepseek-v4-pro"
 COORDINATOR_MAX_TOKENS = 65536
 ROLE_MAX_TOKENS = 6144
+
+# Local DiffusionGemma backend (ABC_BACKEND=local). The model runs through
+# llama-diffusion-cli, so generation length is capped to bound wall-clock time
+# and GPU batch memory; raise DG_*_MAX_N for more detail at the cost of speed.
+# Coordinator thinking is OFF by default: with thinking ON the model burns the
+# whole budget reasoning and gets truncated before emitting its JSON/report.
+DEFAULT_COORD_MAX_N = 4096
+DEFAULT_ROLE_MAX_N = 1536
+
+
+def _env_truthy(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in ("1", "true", "on", "yes")
 
 
 def load_dotenv(path: Path) -> None:
@@ -37,10 +50,16 @@ class AppConfig:
     role_model: str
     coordinator_settings: ModelSettings
     role_settings: ModelSettings
+    backend: str = "deepseek"
+    coordinator_local: LocalSettings | None = None
+    role_local: LocalSettings | None = None
 
     @classmethod
     def from_env(cls, root: Path, *, timeout: int = 600) -> "AppConfig":
         load_dotenv(root / ".env")
+        backend = os.getenv("ABC_BACKEND", "deepseek").strip().lower()
+        if backend in ("local", "diffusiongemma", "local-diffusion"):
+            return cls._local(root, timeout=timeout)
         base_url = os.getenv("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
         coordinator_model = (
             os.getenv("DEEPSEEK_COORDINATOR_MODEL")
@@ -89,4 +108,39 @@ class AppConfig:
                 temperature=0.8,
                 timeout=timeout,
             ),
+        )
+
+    @classmethod
+    def _local(cls, root: Path, *, timeout: int) -> "AppConfig":
+        """Local DiffusionGemma backend: no API keys, one CLI process, serial roles."""
+        coord_max_n = int(os.getenv("DG_COORD_MAX_N", str(DEFAULT_COORD_MAX_N)))
+        role_max_n = int(os.getenv("DG_ROLE_MAX_N", str(DEFAULT_ROLE_MAX_N)))
+        local_timeout = int(os.getenv("DG_TIMEOUT", str(max(timeout, 1800))))
+        coordinator_local = LocalSettings(
+            model_label="diffusiongemma-26B-A4B-it-Q4_K_M",
+            thinking_enabled=_env_truthy("DG_COORD_THINKING", "0"),
+            max_tokens=COORDINATOR_MAX_TOKENS,
+            max_n=coord_max_n,
+            temperature=0.2,
+            timeout=local_timeout,
+        )
+        role_local = LocalSettings(
+            model_label="diffusiongemma-26B-A4B-it-Q4_K_M",
+            thinking_enabled=False,
+            max_tokens=ROLE_MAX_TOKENS,
+            max_n=role_max_n,
+            temperature=0.8,
+            timeout=local_timeout,
+        )
+        return cls(
+            coordinator_key="local",
+            role_keys={"A": "local", "B": "local", "C": "local", "D": "local"},
+            base_url="local",
+            coordinator_model=coordinator_local.model_label,
+            role_model=role_local.model_label,
+            coordinator_settings=coordinator_local._as_model_settings(),
+            role_settings=role_local._as_model_settings(),
+            backend="local",
+            coordinator_local=coordinator_local,
+            role_local=role_local,
         )

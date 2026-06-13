@@ -206,7 +206,18 @@ class Simulator:
             return {slot: DryRunClient(slot) for slot in ["coordinator", "A", "B", "C", "D"]}
         if self.config is None:
             raise RuntimeError("Config is required unless dry_run is enabled.")
-        clients: dict[str, Any] = {
+        if self.config.backend == "local":
+            from .local_diffusion import LocalDiffusionClient
+            assert self.config.coordinator_local and self.config.role_local
+            clients: dict[str, Any] = {
+                "coordinator": LocalDiffusionClient(self.config.coordinator_local)
+            }
+            # One shared local model process, so all roles use the same role config;
+            # roles.py runs them serially (snapshot-fair, identical to the old pool).
+            for slot in self.config.role_keys:
+                clients[slot] = LocalDiffusionClient(self.config.role_local)
+            return clients
+        clients = {
             "coordinator": DeepSeekClient(self.config.coordinator_key, self.config.coordinator_settings)
         }
         for slot, key in self.config.role_keys.items():
@@ -309,6 +320,7 @@ class Simulator:
                         role_max_tokens=self.options.role_max_tokens,
                         preview_chars=self.options.preview_chars,
                         include_summary_round=self.options.role_summary_round,
+                        parallel_roles=(self.config is None or self.config.backend != "local"),
                         call_role=lambda client_key, call_type, messages, max_tokens, context_meta: self._call(
                             client_key=client_key,
                             call_type=call_type,
