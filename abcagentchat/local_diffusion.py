@@ -133,8 +133,14 @@ class LocalDiffusionClient:
         # fixed ubatch (e.g. 32768) segfaults / blows memory; ~8192 is the cap.
         self.threads = os.environ.get("DG_THREADS", "1")
         self.kv_type = os.environ.get("DG_KV_TYPE", "q8_0")
-        self.ctx_max = int(os.environ.get("DG_CTX", "16384"))
-        self.ubatch_max = int(os.environ.get("DG_UBATCH_MAX", "8192"))
+        # MEASURED memory ceiling. ubatch is the SOLE driver of peak GPU memory
+        # (n_predict barely matters; -c is respected). Measured on 48 GB M4 Pro:
+        #   ubatch 4096 -> ~23 GB,  6144 -> ~26 GB,  8192 -> ~27 GB (+ ~14 GB of
+        # other apps -> ~41 GB total -> swap). So cap ubatch at 4096 to keep the
+        # model footprint ~23 GB (<30 GB) with a robust no-swap margin. Prompts
+        # are truncated to fit this ubatch (see _fit_messages).
+        self.ctx_max = int(os.environ.get("DG_CTX", "6144"))
+        self.ubatch_max = int(os.environ.get("DG_UBATCH_MAX", "4096"))
         self.margin = int(os.environ.get("DG_UBATCH_MARGIN", "512"))
         self.eb_tmax = os.environ.get("DG_EB_TMAX")  # optional sampler override
         self.eb_tmin = os.environ.get("DG_EB_TMIN")
@@ -174,12 +180,13 @@ class LocalDiffusionClient:
         start = time.perf_counter()
         proc = self._run(prompt, ubatch=ub, ctx=ctx, n_predict=n_predict)
         raw_out = proc.stdout or ""
-        # If the prompt was under-estimated and still overflowed the ubatch, the CLI
-        # prints the exact requirement — retry once at that size (capped).
+        # If the prompt was under-estimated and still overflowed the ubatch, retry
+        # once — but NEVER above ubatch_max (that would blow the memory ceiling).
+        # _fit_messages truncates prompts to fit, so this should be rare.
         if UBATCH_RE.search(proc.stderr or ""):
             need = int(UBATCH_RE.search(proc.stderr).group(3))
-            ub = min(_round256(need + self.margin), max(self.ubatch_max, _round256(need + self.margin)))
-            ctx = max(ub, min(_round256(n_in + n_predict + self.margin), self.ctx_max), _round256(need))
+            ub = min(_round256(need + self.margin), self.ubatch_max)
+            ctx = max(ub, min(_round256(n_in + n_predict + self.margin), self.ctx_max))
             proc = self._run(prompt, ubatch=ub, ctx=ctx, n_predict=n_predict)
             raw_out = proc.stdout or ""
         elapsed = time.perf_counter() - start
@@ -249,10 +256,13 @@ class LocalDiffusionClient:
                 pass
 
     def _fit_messages(self, messages: list[dict[str, str]], budget_tokens: int):
-        """Drop oldest turns until the rendered prompt fits budget_tokens.
+        """Shrink messages so the rendered prompt fits budget_tokens.
 
-        Always keeps the system/developer message (if any) and the final user
-        message; trims the oldest middle turns first. Returns (messages, trimmed?).
+        Step 1 — drop oldest middle turns (keep system + final/current message).
+        Step 2 — if still over (e.g. the coordinator's single huge prompt, which
+        cannot be turn-trimmed), truncate the largest message's content head+tail.
+        This GUARANTEES the prompt fits the ubatch, so peak GPU memory stays bounded
+        regardless of how large the upstream context is. Returns (messages, trimmed?).
         """
         def size(ms: list[dict[str, str]]) -> int:
             return estimate_tokens(render_chat(ms, thinking=self.settings.thinking_enabled))
@@ -262,11 +272,27 @@ class LocalDiffusionClient:
         has_sys = bool(messages) and messages[0].get("role") in ("system", "developer")
         head = list(messages[:1]) if has_sys else []
         body = list(messages[1:]) if has_sys else list(messages)
-        trimmed = False
+        # 1. drop oldest middle turns, never the current (last) message
         while len(body) > 1 and size(head + body) > budget_tokens:
             body.pop(0)
-            trimmed = True
-        return head + body, trimmed
+        msgs = head + body
+        # 2. still over -> truncate the largest message's content (keep head + tail)
+        for _ in range(16):
+            if size(msgs) <= budget_tokens:
+                break
+            over = size(msgs) - budget_tokens
+            idx = max(range(len(msgs)), key=lambda i: len(str(msgs[i].get("content", ""))))
+            content = str(msgs[idx].get("content", ""))
+            cut = min(len(content) - 200, int(over * 1.2) + 256)
+            if cut <= 0:
+                break
+            keep = len(content) - cut
+            hh = keep // 2
+            msgs[idx] = {
+                **msgs[idx],
+                "content": content[:hh] + "\n\n…[上下文过长，已截断以控制本地显存]…\n\n" + content[-(keep - hh):],
+            }
+        return msgs, True
 
     def _n_predict(self, max_tokens: int | None) -> int:
         want = max_tokens or self.settings.max_tokens

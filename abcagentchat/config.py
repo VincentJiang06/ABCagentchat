@@ -19,8 +19,12 @@ ROLE_MAX_TOKENS = 6144
 # and GPU batch memory; raise DG_*_MAX_N for more detail at the cost of speed.
 # Coordinator thinking is OFF by default: with thinking ON the model burns the
 # whole budget reasoning and gets truncated before emitting its JSON/report.
-DEFAULT_COORD_MAX_N = 4096
-DEFAULT_ROLE_MAX_N = 1536
+# NOTE: peak GPU memory is driven by UBATCH (see local_diffusion DG_UBATCH_MAX),
+# NOT by n_predict — measurement showed n_predict barely moves memory (~0.4 GB per
+# 512 tokens). So these can be moderate for output detail; they mainly affect speed
+# (more 256-token blocks = slower) on the single-threaded local model.
+DEFAULT_COORD_MAX_N = 1024
+DEFAULT_ROLE_MAX_N = 768
 
 
 def _env_truthy(name: str, default: str = "0") -> bool:
